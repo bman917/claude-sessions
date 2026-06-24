@@ -1,6 +1,7 @@
 // src/components/SessionDetail.tsx
 import React from "react";
 import { Box, Text } from "ink";
+import path from "path";
 import { relativeTime } from "../utils";
 import type { Session } from "../types";
 import type { Line } from "../render";
@@ -12,9 +13,10 @@ interface Props {
   scrollOffset: number;
   visibleRows: number;
   focused: boolean;
+  cursor: number;
 }
 
-export function SessionDetail({ session, lines, turnCount, scrollOffset, visibleRows, focused }: Props) {
+export function SessionDetail({ session, lines, turnCount, scrollOffset, visibleRows, focused, cursor }: Props) {
   if (!session) {
     return (
       <Box flexGrow={1} alignItems="center" justifyContent="center">
@@ -37,17 +39,23 @@ export function SessionDetail({ session, lines, turnCount, scrollOffset, visible
       </Box>
       <Box marginBottom={1}>
         <Text dimColor>
-          {relativeTime(session.updatedAt)} · {turnCount} turns
+          {path.basename(session.filePath)} · {relativeTime(session.updatedAt)} · {turnCount} turns
           {scrollable ? ` · ${pct}%` : ""}
-          {focused ? " · scrolling (Esc to list)" : ""}
+          {focused ? " · scrolling · Ctrl+O expand · Esc to list" : ""}
         </Text>
       </Box>
       <Box flexDirection="column">
-        {visible.map((ln, i) => (
-          <Text key={scrollOffset + i} color={ln.color} bold={ln.bold} wrap="truncate">
-            {ln.text === "" ? " " : ln.text}
-          </Text>
-        ))}
+        {visible.map((ln, i) => {
+          const focused = ln.blockIndex === cursor;
+          return (
+            <Box key={scrollOffset + i}>
+              <Text color="cyan">{focused ? "▌" : " "}</Text>
+              <Text color={ln.color} bold={ln.bold} dimColor={ln.dim} wrap="truncate">
+                {ln.text === "" ? " " : ln.text}
+              </Text>
+            </Box>
+          );
+        })}
       </Box>
     </Box>
   );
