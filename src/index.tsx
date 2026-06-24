@@ -2,6 +2,7 @@
 import React from "react";
 import { render } from "ink";
 import { App } from "./components/App";
+import { execReplace } from "./exec";
 import type { Session } from "./types";
 
 let resumeTarget: Session | null = null;
@@ -20,8 +21,11 @@ await instance.waitUntilExit();
 
 if (resumeTarget) {
   const session: Session = resumeTarget;
-  Bun.spawnSync(["claude", "--resume", session.id], {
-    cwd: session.projectPath,
-    stdio: ["inherit", "inherit", "inherit"],
-  });
+  // Resume in the session's own project directory, and replace this process
+  // with claude entirely — no lingering parent.
+  process.chdir(session.projectPath);
+  execReplace(["claude", "--resume", session.id]);
+  // Only reached if exec failed.
+  console.error(`Failed to launch: claude --resume ${session.id}`);
+  process.exit(1);
 }
