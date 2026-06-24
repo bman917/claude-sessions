@@ -1,11 +1,14 @@
 // src/render.ts
 // Pure helpers that flatten a conversation into renderable, scrollable lines.
-import type { Turn } from "./types";
+import path from "path";
+import type { Block } from "./types";
 
 export interface Line {
   text: string;
   color?: string;
   bold?: boolean;
+  dim?: boolean;
+  blockIndex: number;
 }
 
 /**
@@ -48,19 +51,115 @@ export function wrapText(text: string, width: number): string[] {
   return out;
 }
 
-/**
- * Flatten turns into colored lines: a bold role label, the wrapped content
- * indented by two spaces, then a blank separator line between turns.
- */
-export function turnsToLines(turns: Turn[], width: number): Line[] {
-  const lines: Line[] = [];
-  for (const turn of turns) {
-    const isUser = turn.role === "user";
-    lines.push({ text: isUser ? "You" : "Claude", color: isUser ? "green" : "blue", bold: true });
-    for (const cl of wrapText(turn.content, width - 2)) {
-      lines.push({ text: "  " + cl });
+const PREVIEW_RESULT_LINES = 3;
+const PREVIEW_THINKING_LINES = 2;
+const SUMMARY_MAX = 60;
+
+function truncate(s: string, n: number): string {
+  const flat = s.replace(/\s+/g, " ").trim();
+  return flat.length > n ? flat.slice(0, n - 1) + "…" : flat;
+}
+
+export function summarizeTool(name: string, input: Record<string, unknown>): string {
+  switch (name) {
+    case "Bash":
+      return truncate(String(input.command ?? ""), SUMMARY_MAX);
+    case "Read":
+    case "Edit":
+    case "Write":
+      return path.basename(String(input.file_path ?? ""));
+    case "Grep":
+    case "Glob":
+      return truncate(String(input.pattern ?? ""), SUMMARY_MAX);
+    case "Task":
+      return truncate(String(input.description ?? ""), SUMMARY_MAX);
+    default: {
+      const first = Object.values(input)[0];
+      return first === undefined ? "" : truncate(String(first), SUMMARY_MAX);
     }
-    lines.push({ text: "" });
   }
-  return lines;
+}
+
+function expandInput(name: string, input: Record<string, unknown>): string {
+  switch (name) {
+    case "Bash":
+      return String(input.command ?? "");
+    case "Edit":
+      return `- ${String(input.old_string ?? "")}\n+ ${String(input.new_string ?? "")}`;
+    case "Write":
+      return String(input.content ?? "");
+    case "Task":
+      return String(input.prompt ?? "");
+    case "Read":
+    case "Grep":
+    case "Glob":
+      return "";
+    default:
+      return JSON.stringify(input, null, 2);
+  }
+}
+
+export function blocksToLines(
+  blocks: Block[],
+  width: number,
+  expanded: Set<number>
+): { lines: Line[]; ranges: { start: number; len: number }[] } {
+  const lines: Line[] = [];
+  const ranges: { start: number; len: number }[] = [];
+  const body = Math.max(1, width - 2);
+  const resultBody = Math.max(1, width - 4);
+
+  blocks.forEach((block, i) => {
+    const start = lines.length;
+    const push = (text: string, opts: Partial<Line> = {}) =>
+      lines.push({ text, blockIndex: i, ...opts });
+    const isOpen = expanded.has(i);
+
+    if (block.kind === "user" || block.kind === "assistant") {
+      const isUser = block.kind === "user";
+      push(isUser ? "You" : "Claude", { color: isUser ? "green" : "blue", bold: true });
+      for (const cl of wrapText(block.text, body)) push("  " + cl);
+    } else if (block.kind === "thinking") {
+      push("✻ Thinking", { dim: true });
+      const wrapped = wrapText(block.text, body);
+      const shown = isOpen ? wrapped : wrapped.slice(0, PREVIEW_THINKING_LINES);
+      for (const cl of shown) push("  " + cl, { dim: true });
+      if (!isOpen && wrapped.length > shown.length)
+        push(`  … +${wrapped.length - shown.length} more`, { dim: true });
+    } else {
+      const isTask = block.name === "Task";
+      const summary = summarizeTool(block.name, block.input);
+      if (isTask) {
+        const sub = String(block.input.subagent_type ?? "agent");
+        push(`◆ Task(${sub})  ${summary}`, { color: "magenta", bold: true });
+      } else {
+        push(`▸ ${block.name}  ${summary}`, { color: "cyan", bold: true });
+      }
+
+      if (isOpen) {
+        const inputText = expandInput(block.name, block.input);
+        if (inputText) for (const cl of wrapText(inputText, body)) push("  " + cl, { dim: true });
+      }
+
+      if (block.result) {
+        const resultLines = block.result.text.split("\n");
+        const status = block.result.isError ? "error" : "ok";
+        push(`  └ ${status} · ${resultLines.length} lines`, {
+          color: block.result.isError ? "red" : undefined,
+          dim: !block.result.isError,
+        });
+        const shown = isOpen ? resultLines : resultLines.slice(0, PREVIEW_RESULT_LINES);
+        for (const rl of shown) for (const cl of wrapText(rl, resultBody)) push("    " + cl, { dim: true });
+        if (!isOpen && resultLines.length > shown.length)
+          push(`    … +${resultLines.length - shown.length} more`, { dim: true });
+      } else {
+        push("  └ (no result)", { dim: true });
+      }
+    }
+
+    push(""); // blank separator, tagged to this block
+    ranges.push({ start, len: lines.length - start });
+  });
+
+  return { lines, ranges };
 }

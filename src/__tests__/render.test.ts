@@ -1,7 +1,7 @@
 // src/__tests__/render.test.ts
 import { describe, it, expect } from "bun:test";
-import { wrapText, turnsToLines } from "../render";
-import type { Turn } from "../types";
+import { wrapText, blocksToLines, summarizeTool } from "../render";
+import type { Block } from "../types";
 
 describe("wrapText", () => {
   it("returns text unchanged when it fits", () => {
@@ -29,44 +29,69 @@ describe("wrapText", () => {
   });
 });
 
-function turn(role: "user" | "assistant", content: string): Turn {
-  return { role, content, timestamp: new Date("2026-06-23T10:00:00.000Z") };
-}
+describe("summarizeTool", () => {
+  it("uses the first command line for Bash", () => {
+    expect(summarizeTool("Bash", { command: "ls -la\necho hi" })).toBe("ls -la echo hi");
+  });
+  it("uses the basename for file tools", () => {
+    expect(summarizeTool("Read", { file_path: "/a/b/c.ts" })).toBe("c.ts");
+  });
+  it("uses the pattern for Grep", () => {
+    expect(summarizeTool("Grep", { pattern: "foo" })).toBe("foo");
+  });
+  it("uses the description for Task", () => {
+    expect(summarizeTool("Task", { description: "do thing" })).toBe("do thing");
+  });
+});
 
-describe("turnsToLines", () => {
-  it("emits a colored label, indented wrapped content, and a blank separator", () => {
-    const lines = turnsToLines([turn("user", "hi there")], 20);
+describe("blocksToLines", () => {
+  it("renders user and assistant blocks in full with a trailing separator", () => {
+    const blocks: Block[] = [
+      { kind: "user", text: "hi" },
+      { kind: "assistant", text: "yo" },
+    ];
+    const { lines, ranges } = blocksToLines(blocks, 20, new Set());
     expect(lines).toEqual([
-      { text: "You", color: "green", bold: true },
-      { text: "  hi there" },
-      { text: "" },
+      { text: "You", color: "green", bold: true, blockIndex: 0 },
+      { text: "  hi", blockIndex: 0 },
+      { text: "", blockIndex: 0 },
+      { text: "Claude", color: "blue", bold: true, blockIndex: 1 },
+      { text: "  yo", blockIndex: 1 },
+      { text: "", blockIndex: 1 },
+    ]);
+    expect(ranges).toEqual([
+      { start: 0, len: 3 },
+      { start: 3, len: 3 },
     ]);
   });
 
-  it("labels assistant turns as Claude in blue", () => {
-    const lines = turnsToLines([turn("assistant", "ok")], 20);
-    expect(lines[0]).toEqual({ text: "Claude", color: "blue", bold: true });
+  it("renders a tool compact with a result summary, expanded with full input + result", () => {
+    const blocks: Block[] = [
+      { kind: "tool", name: "Bash", input: { command: "make" }, result: { text: "l1\nl2\nl3\nl4", isError: false } },
+    ];
+    const compact = blocksToLines(blocks, 40, new Set()).lines.map((l) => l.text);
+    expect(compact[0]).toBe("▸ Bash  make");
+    expect(compact).toContain("  └ ok · 4 lines");
+    expect(compact).toContain("    … +1 more"); // 4 result lines, 3 shown
+
+    const open = blocksToLines(blocks, 40, new Set([0])).lines.map((l) => l.text);
+    expect(open).toContain("  make"); // full input shown
+    expect(open).toContain("    l4"); // all result lines shown
+    expect(open).not.toContain("    … +1 more");
   });
 
-  it("wraps long content to the available width minus the indent", () => {
-    const lines = turnsToLines([turn("user", "hello world")], 9); // width-2 = 7
-    expect(lines).toEqual([
-      { text: "You", color: "green", bold: true },
-      { text: "  hello" },
-      { text: "  world" },
-      { text: "" },
-    ]);
+  it("marks errored tool results red and renders Task blocks with subagent + description", () => {
+    const err = blocksToLines([{ kind: "tool", name: "Bash", input: {}, result: { text: "boom", isError: true } }], 40, new Set());
+    const summary = err.lines.find((l) => l.text.startsWith("  └"));
+    expect(summary).toMatchObject({ text: "  └ error · 1 lines", color: "red" });
+
+    const task = blocksToLines([{ kind: "tool", name: "Task", input: { subagent_type: "Explore", description: "look" } }], 40, new Set());
+    expect(task.lines[0]).toMatchObject({ text: "◆ Task(Explore)  look", color: "magenta", bold: true });
   });
 
-  it("concatenates multiple turns", () => {
-    const lines = turnsToLines([turn("user", "a"), turn("assistant", "b")], 20);
-    expect(lines).toEqual([
-      { text: "You", color: "green", bold: true },
-      { text: "  a" },
-      { text: "" },
-      { text: "Claude", color: "blue", bold: true },
-      { text: "  b" },
-      { text: "" },
-    ]);
+  it("renders thinking compact (preview + more) and dimmed", () => {
+    const { lines } = blocksToLines([{ kind: "thinking", text: "a\nb\nc" }], 40, new Set());
+    expect(lines[0]).toMatchObject({ text: "✻ Thinking", dim: true });
+    expect(lines.map((l) => l.text)).toContain("  … +1 more"); // 3 lines, 2 shown
   });
 });
