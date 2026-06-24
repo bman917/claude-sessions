@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Box, Text, useInput, useStdout, useApp } from "ink";
 import { loadSessions, loadTurns } from "../sessions";
 import { createFuse, searchSessions } from "../fuzzy";
-import { useVimNav } from "../nav";
+import { useVimNav, useScroll } from "../nav";
+import { turnsToLines } from "../render";
 import { SearchBar } from "./SearchBar";
 import { SessionList } from "./SessionList";
 import { SessionDetail } from "./SessionDetail";
@@ -11,6 +12,8 @@ import { StatusBar } from "./StatusBar";
 import type { Session, Turn } from "../types";
 
 const LIST_WIDTH = 35;
+
+type Focus = "list" | "detail";
 
 interface AppProps {
   // Called when the user requests resume. The entry point unmounts Ink
@@ -28,6 +31,7 @@ export function App({ onResume }: AppProps = {}) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
+  const [focus, setFocus] = useState<Focus>("list");
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [turnCount, setTurnCount] = useState(0);
@@ -45,18 +49,31 @@ export function App({ onResume }: AppProps = {}) {
   );
 
   const listVisibleRows = termRows - 4;
-  const detailVisibleRows = termRows - 6;
+  const detailVisibleRows = Math.max(1, termRows - 6);
   const itemHeight = 3; // each SessionItem takes 3 rows
+  const detailWidth = Math.max(20, termCols - LIST_WIDTH - 4);
 
-  const { index: selectedIndex, offset: scrollOffset, reset } = useVimNav(
+  // Flatten the selected session's conversation into scrollable lines.
+  const lines = useMemo(() => turnsToLines(turns, detailWidth), [turns, detailWidth]);
+
+  const detailFocused = focus === "detail";
+
+  const { index: selectedIndex, offset: listScroll, reset: resetList } = useVimNav(
     filteredSessions.length,
     Math.max(1, Math.floor(listVisibleRows / itemHeight)),
-    !searchFocused
+    !searchFocused && focus === "list"
   );
 
-  // Reset scroll and clear detail when query changes
+  const { offset: detailScroll, reset: resetDetailScroll } = useScroll(
+    lines.length,
+    detailVisibleRows,
+    !searchFocused && detailFocused
+  );
+
+  // Reset everything when the query changes
   useEffect(() => {
-    reset();
+    resetList();
+    setFocus("list");
     setSelectedSession(null);
     setTurns([]);
   }, [query]);
@@ -66,17 +83,31 @@ export function App({ onResume }: AppProps = {}) {
     if (input === "q") exit();
   });
 
-  // Navigation and action keys — inactive while search is focused
+  // Action keys — inactive while search is focused. j/k are owned by
+  // useVimNav (list) or useScroll (detail) depending on focus, so they are
+  // intentionally not handled here.
   useInput(
     (input, key) => {
-      if (input === "/") { setSearchFocused(true); return; }
-      if (key.return) {
+      if (key.escape) {
+        if (detailFocused) setFocus("list");
+        return;
+      }
+      if (input === "/") {
+        if (focus === "list") setSearchFocused(true);
+        return;
+      }
+      if (key.return && focus === "list") {
         const session = filteredSessions[selectedIndex];
         if (!session) return;
         setSelectedSession(session);
         const { turns: t, turnCount: tc } = loadTurns(session);
         setTurns(t);
         setTurnCount(tc);
+        if (showDetail) {
+          resetDetailScroll();
+          setFocus("detail");
+        }
+        return;
       }
       if (input === "r" && selectedSession) {
         // Hand off to the entry point: it unmounts Ink (restoring terminal
@@ -109,25 +140,28 @@ export function App({ onResume }: AppProps = {}) {
         <SessionList
           sessions={filteredSessions}
           selectedIndex={selectedIndex}
-          scrollOffset={scrollOffset}
+          scrollOffset={listScroll}
           visibleRows={Math.max(1, Math.floor(listVisibleRows / itemHeight))}
           width={showDetail ? LIST_WIDTH : termCols}
+          dimmed={detailFocused}
         />
         {showDetail && (
           <>
             <Box borderStyle="single" borderLeft borderRight={false} borderTop={false} borderBottom={false} />
             <SessionDetail
               session={selectedSession}
-              turns={turns}
+              lines={lines}
               turnCount={turnCount}
+              scrollOffset={detailScroll}
               visibleRows={detailVisibleRows}
+              focused={detailFocused}
             />
           </>
         )}
       </Box>
 
       {/* Status bar */}
-      <StatusBar />
+      <StatusBar focus={focus} hasDetail={showDetail && selectedSession !== null} />
     </Box>
   );
 }

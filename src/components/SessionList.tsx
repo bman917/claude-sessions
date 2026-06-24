@@ -10,9 +10,10 @@ interface Props {
   scrollOffset: number;
   visibleRows: number;
   width: number;
+  dimmed?: boolean;
 }
 
-export function SessionList({ sessions, selectedIndex, scrollOffset, visibleRows, width }: Props) {
+export function SessionList({ sessions, selectedIndex, scrollOffset, visibleRows, width, dimmed }: Props) {
   const visible = sessions.slice(scrollOffset, scrollOffset + visibleRows);
 
   return (
@@ -22,6 +23,7 @@ export function SessionList({ sessions, selectedIndex, scrollOffset, visibleRows
           key={session.id}
           session={session}
           selected={scrollOffset + i === selectedIndex}
+          dimmed={dimmed}
           width={width}
         />
       ))}

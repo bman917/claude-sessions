@@ -77,3 +77,70 @@ export function useVimNav(
   const reset = () => setNav({ index: 0, offset: 0 });
   return { index: nav.index, offset: nav.offset, reset };
 }
+
+// --- Content scrolling (e.g. the detail pane) -------------------------------
+// Unlike computeNav (which moves a cursor and scrolls only when it leaves the
+// window), this moves the viewport directly over a fixed list of lines.
+
+export function computeScroll(
+  offset: number,
+  action: NavAction,
+  totalLines: number,
+  visibleRows: number
+): number {
+  const maxOffset = Math.max(0, totalLines - visibleRows);
+  const clamp = (n: number) => Math.max(0, Math.min(n, maxOffset));
+  const half = Math.max(1, Math.floor(visibleRows / 2));
+
+  switch (action) {
+    case "up":       return clamp(offset - 1);
+    case "down":     return clamp(offset + 1);
+    case "top":      return 0;
+    case "bottom":   return maxOffset;
+    case "halfDown": return clamp(offset + half);
+    case "halfUp":   return clamp(offset - half);
+  }
+}
+
+export function useScroll(
+  totalLines: number,
+  visibleRows: number,
+  enabled: boolean
+): { offset: number; reset: () => void } {
+  const [offset, setOffset] = useState(0);
+  const lastGTime = useRef(0);
+
+  // Re-clamp when content or viewport size changes.
+  useEffect(() => {
+    const maxOffset = Math.max(0, totalLines - visibleRows);
+    setOffset((prev) => Math.min(prev, maxOffset));
+  }, [totalLines, visibleRows]);
+
+  useInput(
+    (input, key) => {
+      if (input === "j" || key.downArrow) {
+        setOffset((p) => computeScroll(p, "down", totalLines, visibleRows));
+      } else if (input === "k" || key.upArrow) {
+        setOffset((p) => computeScroll(p, "up", totalLines, visibleRows));
+      } else if (input === "G") {
+        setOffset((p) => computeScroll(p, "bottom", totalLines, visibleRows));
+      } else if (input === "g") {
+        const now = Date.now();
+        if (now - lastGTime.current < 500) {
+          setOffset(0);
+          lastGTime.current = 0;
+        } else {
+          lastGTime.current = now;
+        }
+      } else if (key.ctrl && input === "d") {
+        setOffset((p) => computeScroll(p, "halfDown", totalLines, visibleRows));
+      } else if (key.ctrl && input === "u") {
+        setOffset((p) => computeScroll(p, "halfUp", totalLines, visibleRows));
+      }
+    },
+    { isActive: enabled }
+  );
+
+  const reset = () => setOffset(0);
+  return { offset, reset };
+}

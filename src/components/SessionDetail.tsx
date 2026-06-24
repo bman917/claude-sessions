@@ -1,42 +1,52 @@
 // src/components/SessionDetail.tsx
 import React from "react";
 import { Box, Text } from "ink";
-import { TurnView } from "./TurnView";
 import { relativeTime } from "../utils";
-import type { Session, Turn } from "../types";
+import type { Session } from "../types";
+import type { Line } from "../render";
 
 interface Props {
   session: Session | null;
-  turns: Turn[];
+  lines: Line[];
   turnCount: number;
+  scrollOffset: number;
   visibleRows: number;
+  focused: boolean;
 }
 
-export function SessionDetail({ session, turns, turnCount, visibleRows }: Props) {
+export function SessionDetail({ session, lines, turnCount, scrollOffset, visibleRows, focused }: Props) {
   if (!session) {
     return (
       <Box flexGrow={1} alignItems="center" justifyContent="center">
-        <Text dimColor>Select a session to view</Text>
+        <Text dimColor>Press Enter on a session to view it</Text>
       </Box>
     );
   }
 
-  // Show most recent turns that fit
-  const visibleTurns = turns.slice(-visibleRows);
+  const visible = lines.slice(scrollOffset, scrollOffset + visibleRows);
+  const maxOffset = Math.max(0, lines.length - visibleRows);
+  const scrollable = lines.length > visibleRows;
+  const pct = maxOffset === 0 ? 100 : Math.round((scrollOffset / maxOffset) * 100);
 
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1}>
-      <Box marginBottom={1}>
-        <Text bold>{session.projectPath}</Text>
+      <Box>
+        <Text bold color={focused ? "cyan" : undefined}>
+          {session.projectPath}
+        </Text>
       </Box>
       <Box marginBottom={1}>
         <Text dimColor>
           {relativeTime(session.updatedAt)} · {turnCount} turns
+          {scrollable ? ` · ${pct}%` : ""}
+          {focused ? " · scrolling (Esc to list)" : ""}
         </Text>
       </Box>
       <Box flexDirection="column">
-        {visibleTurns.map((turn, i) => (
-          <TurnView key={i} turn={turn} />
+        {visible.map((ln, i) => (
+          <Text key={scrollOffset + i} color={ln.color} bold={ln.bold} wrap="truncate">
+            {ln.text === "" ? " " : ln.text}
+          </Text>
         ))}
       </Box>
     </Box>
