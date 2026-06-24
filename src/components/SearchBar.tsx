@@ -1,6 +1,7 @@
 // src/components/SearchBar.tsx
 import React from "react";
 import { Box, Text, useInput } from "ink";
+import { searchBarView } from "../searchbar";
 
 interface Props {
   query: string;
@@ -31,16 +32,25 @@ export function SearchBar({
     { isActive: focused }
   );
 
+  const view = searchBarView({ query, focused, matchCount, error });
+
   return (
-    <Box paddingX={1}>
-      <Text color="yellow">/ </Text>
-      <Text>{query || ""}</Text>
-      {focused && <Text color="gray">█</Text>}
-      {error ? (
-        <Text color="red"> {error}</Text>
-      ) : matchCount !== null ? (
-        <Text dimColor> {matchCount} {matchCount === 1 ? "match" : "matches"}</Text>
-      ) : null}
+    <Box
+      borderStyle="round"
+      borderColor={view.borderColor}
+      paddingX={1}
+      justifyContent="space-between"
+    >
+      <Box>
+        <Text color={focused ? "cyan" : "gray"}>{"🔍 "}</Text>
+        {view.showPlaceholder ? (
+          <Text dimColor>Search transcripts  (press /)</Text>
+        ) : (
+          <Text>{query}</Text>
+        )}
+        {focused && <Text color="gray">{"█"}</Text>}
+      </Box>
+      {view.status && <Text color={view.status.color}>{view.status.text}</Text>}
     </Box>
   );
 }
