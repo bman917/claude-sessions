@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Box, Text, useInput, useStdout, useApp } from "ink";
 import { loadSessions, loadTurns } from "../sessions";
-import { createFuse, searchSessions } from "../fuzzy";
+import { searchBodies } from "../search";
 import { useVimNav, useScroll } from "../nav";
 import { turnsToLines } from "../render";
 import { SearchBar } from "./SearchBar";
@@ -30,6 +30,9 @@ export function App({ onResume }: AppProps = {}) {
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [query, setQuery] = useState("");
+  // null means no active filter; a set restricts the list to matching session ids.
+  const [matchedIds, setMatchedIds] = useState<Set<string> | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
   const [focus, setFocus] = useState<Focus>("list");
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -42,11 +45,29 @@ export function App({ onResume }: AppProps = {}) {
     setSessions(loaded);
   }, []);
 
-  const fuse = useMemo(() => createFuse(sessions), [sessions]);
   const filteredSessions = useMemo(
-    () => (query ? searchSessions(fuse, query) : sessions),
-    [fuse, query, sessions]
+    () => (matchedIds ? sessions.filter((s) => matchedIds.has(s.id)) : sessions),
+    [matchedIds, sessions]
   );
+
+  // Run ripgrep over the transcript bodies on Enter. An empty query clears the
+  // filter; an rg failure leaves the list unfiltered and surfaces an error.
+  const handleSearchSubmit = (q: string) => {
+    setSearchFocused(false);
+    if (!q.trim()) {
+      setMatchedIds(null);
+      setSearchError(null);
+      return;
+    }
+    const result = searchBodies(q);
+    if (result.ok) {
+      setMatchedIds(result.ids);
+      setSearchError(null);
+    } else {
+      setMatchedIds(null);
+      setSearchError(result.error === "rg-missing" ? "ripgrep not found" : "search error");
+    }
+  };
 
   const listVisibleRows = termRows - 4;
   const detailVisibleRows = Math.max(1, termRows - 6);
@@ -70,13 +91,13 @@ export function App({ onResume }: AppProps = {}) {
     !searchFocused && detailFocused
   );
 
-  // Reset everything when the query changes
+  // Reset everything when the applied filter changes
   useEffect(() => {
     resetList();
     setFocus("list");
     setSelectedSession(null);
     setTurns([]);
-  }, [query]);
+  }, [matchedIds]);
 
   // q quits regardless of mode — exit() lets Ink restore the terminal cleanly
   useInput((input) => {
@@ -132,7 +153,10 @@ export function App({ onResume }: AppProps = {}) {
         query={query}
         focused={searchFocused}
         onChange={setQuery}
+        onSubmit={handleSearchSubmit}
         onExit={() => setSearchFocused(false)}
+        matchCount={matchedIds ? filteredSessions.length : null}
+        error={searchError}
       />
 
       {/* Main panes */}
