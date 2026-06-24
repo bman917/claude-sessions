@@ -1,15 +1,15 @@
 // src/components/App.tsx
 import React, { useState, useEffect, useMemo } from "react";
 import { Box, Text, useInput, useStdout, useApp } from "ink";
-import { loadSessions, loadTurns } from "../sessions";
+import { loadSessions, loadBlocks } from "../sessions";
 import { searchBodies } from "../search";
-import { useVimNav, useScroll } from "../nav";
-import { turnsToLines } from "../render";
+import { useVimNav, useBlockNav } from "../nav";
+import { blocksToLines } from "../render";
 import { SearchBar } from "./SearchBar";
 import { SessionList } from "./SessionList";
 import { SessionDetail } from "./SessionDetail";
 import { StatusBar } from "./StatusBar";
-import type { Session, Turn } from "../types";
+import type { Session, Block } from "../types";
 
 const LIST_WIDTH = 35;
 
@@ -36,7 +36,8 @@ export function App({ onResume }: AppProps = {}) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [focus, setFocus] = useState<Focus>("list");
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [turnCount, setTurnCount] = useState(0);
 
   // Load sessions on mount
@@ -74,8 +75,11 @@ export function App({ onResume }: AppProps = {}) {
   const itemHeight = 3; // each SessionItem takes 3 rows
   const detailWidth = Math.max(20, termCols - LIST_WIDTH - 4);
 
-  // Flatten the selected session's conversation into scrollable lines.
-  const lines = useMemo(() => turnsToLines(turns, detailWidth), [turns, detailWidth]);
+  // Flatten the selected conversation into scrollable lines + per-block ranges.
+  const { lines, ranges } = useMemo(
+    () => blocksToLines(blocks, detailWidth, expanded),
+    [blocks, detailWidth, expanded]
+  );
 
   const detailFocused = focus === "detail";
 
@@ -85,7 +89,8 @@ export function App({ onResume }: AppProps = {}) {
     !searchFocused && focus === "list"
   );
 
-  const { offset: detailScroll, reset: resetDetailScroll } = useScroll(
+  const { cursor: detailCursor, offset: detailScroll, reset: resetDetailScroll } = useBlockNav(
+    ranges,
     lines.length,
     detailVisibleRows,
     !searchFocused && detailFocused
@@ -96,7 +101,8 @@ export function App({ onResume }: AppProps = {}) {
     resetList();
     setFocus("list");
     setSelectedSession(null);
-    setTurns([]);
+    setBlocks([]);
+    setExpanded(new Set());
   }, [matchedIds]);
 
   // q quits regardless of mode — exit() lets Ink restore the terminal cleanly
@@ -113,6 +119,15 @@ export function App({ onResume }: AppProps = {}) {
         if (detailFocused) setFocus("list");
         return;
       }
+      if (key.ctrl && input === "o" && detailFocused) {
+        setExpanded((prev) => {
+          const next = new Set(prev);
+          if (next.has(detailCursor)) next.delete(detailCursor);
+          else next.add(detailCursor);
+          return next;
+        });
+        return;
+      }
       if (input === "/") {
         if (focus === "list") setSearchFocused(true);
         return;
@@ -121,9 +136,10 @@ export function App({ onResume }: AppProps = {}) {
         const session = filteredSessions[selectedIndex];
         if (!session) return;
         setSelectedSession(session);
-        const { turns: t, turnCount: tc } = loadTurns(session);
-        setTurns(t);
+        const { blocks: b, turnCount: tc } = loadBlocks(session);
+        setBlocks(b);
         setTurnCount(tc);
+        setExpanded(new Set());
         if (showDetail) {
           resetDetailScroll();
           setFocus("detail");
@@ -179,6 +195,7 @@ export function App({ onResume }: AppProps = {}) {
               scrollOffset={detailScroll}
               visibleRows={detailVisibleRows}
               focused={detailFocused}
+              cursor={detailCursor}
             />
           </>
         )}
