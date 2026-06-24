@@ -73,6 +73,7 @@ export function App() {
       }
       if (input === "r" && selectedSession) {
         Bun.spawn(["claude", "--resume", selectedSession.id], {
+          cwd: selectedSession.projectPath,
           stdio: ["inherit", "inherit", "inherit"],
         });
         process.exit(0);
