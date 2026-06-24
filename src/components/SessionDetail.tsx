@@ -53,6 +53,7 @@ export function SessionDetail({ session, lines, turnCount, scrollOffset, visible
               <Text color={ln.color} bold={ln.bold} dimColor={ln.dim} wrap="truncate">
                 {ln.text === "" ? " " : ln.text}
               </Text>
+              {isLineFocused && ln.hint ? <Text dimColor>{"   "}{ln.hint}</Text> : null}
             </Box>
           );
         })}

@@ -94,4 +94,32 @@ describe("blocksToLines", () => {
     expect(lines[0]).toMatchObject({ text: "✻ Thinking", dim: true });
     expect(lines.map((l) => l.text)).toContain("  … +1 more"); // 3 lines, 2 shown
   });
+
+  it("puts an expand/collapse hint on collapsible block headers, reflecting state", () => {
+    const tool: Block[] = [{ kind: "tool", name: "Bash", input: { command: "make" } }];
+    expect(blocksToLines(tool, 40, new Set()).lines[0].hint).toBe("Ctrl+O to expand");
+    expect(blocksToLines(tool, 40, new Set([0])).lines[0].hint).toBe("Ctrl+O to collapse");
+
+    const task = blocksToLines([{ kind: "tool", name: "Task", input: { subagent_type: "Explore", description: "look" } }], 40, new Set());
+    expect(task.lines[0].hint).toBe("Ctrl+O to expand");
+
+    const thinking = blocksToLines([{ kind: "thinking", text: "a\nb\nc" }], 40, new Set());
+    expect(thinking.lines[0].hint).toBe("Ctrl+O to expand");
+  });
+
+  it("does not put a hint on user/assistant headers or on non-header lines", () => {
+    const { lines } = blocksToLines(
+      [
+        { kind: "user", text: "hi" },
+        { kind: "tool", name: "Bash", input: { command: "make" }, result: { text: "out", isError: false } },
+      ],
+      40,
+      new Set()
+    );
+    expect(lines[0].hint).toBeUndefined(); // "You" header
+    // every line of the tool block except its header carries no hint
+    const toolLines = lines.filter((l) => l.blockIndex === 1);
+    expect(toolLines[0].hint).toBe("Ctrl+O to expand"); // header
+    for (const l of toolLines.slice(1)) expect(l.hint).toBeUndefined();
+  });
 });

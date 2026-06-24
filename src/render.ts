@@ -9,6 +9,9 @@ export interface Line {
   bold?: boolean;
   dim?: boolean;
   blockIndex: number;
+  // On a collapsible block's header line: the keybinding hint to show when the
+  // block is focused (e.g. "Ctrl+O to expand"). The component decides visibility.
+  hint?: string;
 }
 
 /**
@@ -114,13 +117,16 @@ export function blocksToLines(
     const push = (text: string, opts: Partial<Line> = {}) =>
       lines.push({ text, blockIndex: i, ...opts });
     const isOpen = expanded.has(i);
+    // Collapsible blocks (thinking/tool/Task) carry a focus-only keybinding hint
+    // on their header line; the component shows it only for the focused block.
+    const hint = isOpen ? "Ctrl+O to collapse" : "Ctrl+O to expand";
 
     if (block.kind === "user" || block.kind === "assistant") {
       const isUser = block.kind === "user";
       push(isUser ? "You" : "Claude", { color: isUser ? "green" : "blue", bold: true });
       for (const cl of wrapText(block.text, body)) push("  " + cl);
     } else if (block.kind === "thinking") {
-      push("✻ Thinking", { dim: true });
+      push("✻ Thinking", { dim: true, hint });
       const wrapped = wrapText(block.text, body);
       const shown = isOpen ? wrapped : wrapped.slice(0, PREVIEW_THINKING_LINES);
       for (const cl of shown) push("  " + cl, { dim: true });
@@ -131,9 +137,9 @@ export function blocksToLines(
       const summary = summarizeTool(block.name, block.input);
       if (isTask) {
         const sub = String(block.input.subagent_type ?? "agent");
-        push(`◆ Task(${sub})  ${summary}`, { color: "magenta", bold: true });
+        push(`◆ Task(${sub})  ${summary}`, { color: "magenta", bold: true, hint });
       } else {
-        push(`▸ ${block.name}  ${summary}`, { color: "cyan", bold: true });
+        push(`▸ ${block.name}  ${summary}`, { color: "cyan", bold: true, hint });
       }
 
       if (isOpen) {
