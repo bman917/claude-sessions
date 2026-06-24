@@ -49,7 +49,9 @@ export function SessionDetail({ session, lines, turnCount, scrollOffset, visible
           const isLineFocused = ln.blockIndex === cursor;
           return (
             <Box key={scrollOffset + i}>
-              <Text color="cyan">{isLineFocused ? "▌" : " "}</Text>
+              <Text color={isLineFocused ? "cyan" : ln.accent} dimColor={!isLineFocused}>
+                {isLineFocused ? "▌" : ln.accent ? "│" : " "}
+              </Text>
               <Text color={ln.color} bold={ln.bold} dimColor={ln.dim} wrap="truncate">
                 {ln.text === "" ? " " : ln.text}
               </Text>

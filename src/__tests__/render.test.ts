@@ -52,12 +52,12 @@ describe("blocksToLines", () => {
     ];
     const { lines, ranges } = blocksToLines(blocks, 20, new Set());
     expect(lines).toEqual([
-      { text: "You", color: "green", bold: true, blockIndex: 0 },
-      { text: "  hi", blockIndex: 0 },
-      { text: "", blockIndex: 0 },
-      { text: "Claude", color: "blue", bold: true, blockIndex: 1 },
-      { text: "  yo", blockIndex: 1 },
-      { text: "", blockIndex: 1 },
+      { text: "You", color: "green", bold: true, blockIndex: 0, accent: "green" },
+      { text: "  hi", blockIndex: 0, accent: "green" },
+      { text: "", blockIndex: 0, accent: "green" },
+      { text: "Claude", color: "blue", bold: true, blockIndex: 1, accent: "blue" },
+      { text: "  yo", blockIndex: 1, accent: "blue" },
+      { text: "", blockIndex: 1, accent: "blue" },
     ]);
     expect(ranges).toEqual([
       { start: 0, len: 3 },
@@ -121,5 +121,23 @@ describe("blocksToLines", () => {
     const toolLines = lines.filter((l) => l.blockIndex === 1);
     expect(toolLines[0].hint).toBe("Ctrl+O to expand"); // header
     for (const l of toolLines.slice(1)) expect(l.hint).toBeUndefined();
+  });
+
+  it("tags every line of a block with a kind-based accent color", () => {
+    const { lines } = blocksToLines(
+      [
+        { kind: "thinking", text: "t" },
+        { kind: "tool", name: "Bash", input: { command: "x" }, result: { text: "o", isError: false } },
+        { kind: "tool", name: "Task", input: { subagent_type: "Explore", description: "d" } },
+      ],
+      40,
+      new Set()
+    );
+    const accentOf = (i: number) => lines.find((l) => l.blockIndex === i)!.accent;
+    expect(accentOf(0)).toBe("gray");    // thinking
+    expect(accentOf(1)).toBe("cyan");    // tool
+    expect(accentOf(2)).toBe("magenta"); // Task
+    // applies to non-header lines too
+    expect(lines.filter((l) => l.blockIndex === 1).every((l) => l.accent === "cyan")).toBe(true);
   });
 });

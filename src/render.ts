@@ -12,6 +12,8 @@ export interface Line {
   // On a collapsible block's header line: the keybinding hint to show when the
   // block is focused (e.g. "Ctrl+O to expand"). The component decides visibility.
   hint?: string;
+  // Left-gutter accent color for the line, keyed to the owning block's kind.
+  accent?: string;
 }
 
 /**
@@ -114,8 +116,18 @@ export function blocksToLines(
 
   blocks.forEach((block, i) => {
     const start = lines.length;
+    const accent =
+      block.kind === "user"
+        ? "green"
+        : block.kind === "assistant"
+          ? "blue"
+          : block.kind === "thinking"
+            ? "gray"
+            : block.name === "Task"
+              ? "magenta"
+              : "cyan";
     const push = (text: string, opts: Partial<Line> = {}) =>
-      lines.push({ text, blockIndex: i, ...opts });
+      lines.push({ text, blockIndex: i, accent, ...opts });
     const isOpen = expanded.has(i);
     // Collapsible blocks (thinking/tool/Task) carry a focus-only keybinding hint
     // on their header line; the component shows it only for the focused block.
