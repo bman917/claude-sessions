@@ -10,8 +10,13 @@ export interface Session {
   filePath: string;    // absolute path to .jsonl file
 }
 
-export interface Turn {
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-}
+export type Block =
+  | { kind: "user"; text: string }
+  | { kind: "assistant"; text: string }
+  | { kind: "thinking"; text: string }
+  | {
+      kind: "tool";
+      name: string;
+      input: Record<string, unknown>;
+      result?: { text: string; isError: boolean };
+    };

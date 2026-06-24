@@ -1,6 +1,6 @@
 // src/__tests__/sessions.test.ts
 import { describe, it, expect } from "bun:test";
-import { parseLines, loadTurns } from "../sessions";
+import { parseLines, entriesToBlocks } from "../sessions";
 import type { Session } from "../types";
 
 const MTIME = new Date("2026-06-23T12:00:00.000Z");
@@ -121,33 +121,103 @@ const JSONL_CONTENT = [
   }),
 ].join("\n");
 
-describe("loadTurns", () => {
-  it("extracts user and assistant turns", () => {
-    // Write fixture to temp file
-    const tmpFile = "/tmp/test-session.jsonl";
-    require("fs").writeFileSync(tmpFile, JSONL_CONTENT);
-    const { turns, turnCount } = loadTurns({ ...STUB_SESSION, filePath: tmpFile });
-
-    expect(turns).toHaveLength(3);
-    expect(turns[0]).toEqual({ role: "user", content: "Hello", timestamp: new Date("2026-06-23T10:00:00.000Z") });
-    expect(turns[1]).toEqual({ role: "assistant", content: "Hi there!", timestamp: new Date("2026-06-23T10:00:05.000Z") });
-    expect(turns[2]).toEqual({ role: "user", content: "Thanks", timestamp: new Date("2026-06-23T10:01:00.000Z") });
-    expect(turnCount).toBe(2);
+describe("entriesToBlocks", () => {
+  const human = (text: string) => ({
+    type: "user",
+    message: { role: "user", content: text },
+    origin: { kind: "human" },
+    promptSource: "typed",
   });
 
-  it("skips assistant messages with no text blocks", () => {
-    const noTextContent = JSON.stringify({
-      type: "assistant",
-      uuid: "a2",
-      timestamp: "2026-06-23T10:02:00.000Z",
-      message: {
-        role: "assistant",
-        content: [{ type: "tool_use", id: "t2", name: "Bash", input: {} }],
+  it("emits user, assistant, and thinking blocks in order", () => {
+    const { blocks, turnCount } = entriesToBlocks([
+      human("Hello"),
+      {
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "hmm" },
+            { type: "text", text: "Hi there!" },
+          ],
+        },
       },
+    ]);
+    expect(blocks).toEqual([
+      { kind: "user", text: "Hello" },
+      { kind: "thinking", text: "hmm" },
+      { kind: "assistant", text: "Hi there!" },
+    ]);
+    expect(turnCount).toBe(1);
+  });
+
+  it("pairs a tool_use with its tool_result by id", () => {
+    const { blocks } = entriesToBlocks([
+      {
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "ls" } }],
+        },
+      },
+      {
+        type: "user",
+        message: {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "t1", content: "a\nb", is_error: false }],
+        },
+      },
+    ]);
+    expect(blocks).toEqual([
+      { kind: "tool", name: "Bash", input: { command: "ls" }, result: { text: "a\nb", isError: false } },
+    ]);
+  });
+
+  it("flattens array tool_result content to text and treats is_error null as not-error", () => {
+    const { blocks } = entriesToBlocks([
+      {
+        type: "assistant",
+        message: { role: "assistant", content: [{ type: "tool_use", id: "t2", name: "Read", input: {} }] },
+      },
+      {
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "t2",
+              content: [{ type: "text", text: "line1" }, { type: "tool_reference" }, { type: "text", text: "line2" }],
+              is_error: null,
+            },
+          ],
+        },
+      },
+    ]);
+    expect(blocks[0]).toEqual({
+      kind: "tool",
+      name: "Read",
+      input: {},
+      result: { text: "line1\nline2", isError: false },
     });
-    const tmpFile = "/tmp/test-session-notxt.jsonl";
-    require("fs").writeFileSync(tmpFile, noTextContent);
-    const { turns } = loadTurns({ ...STUB_SESSION, filePath: tmpFile });
-    expect(turns).toHaveLength(0);
+  });
+
+  it("leaves result undefined when a tool_use has no matching result", () => {
+    const { blocks } = entriesToBlocks([
+      {
+        type: "assistant",
+        message: { role: "assistant", content: [{ type: "tool_use", id: "t3", name: "Bash", input: {} }] },
+      },
+    ]);
+    expect(blocks).toEqual([{ kind: "tool", name: "Bash", input: {} }]);
+  });
+
+  it("ignores empty text blocks and non-typed user entries", () => {
+    const { blocks, turnCount } = entriesToBlocks([
+      { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "   " }] } },
+      { type: "user", message: { role: "user", content: "synthetic" } }, // not human-typed
+    ]);
+    expect(blocks).toEqual([]);
+    expect(turnCount).toBe(0);
   });
 });
