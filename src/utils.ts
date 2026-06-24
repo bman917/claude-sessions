@@ -10,3 +10,13 @@ export function relativeTime(date: Date): string {
   if (days < 7) return `${days}d ago`;
   return `${weeks}w ago`;
 }
+
+export function truncateEnd(s: string, n: number): string {
+  if (n <= 0) return "";
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+export function headerSummary(total: number, matchCount: number | null, query: string): string {
+  if (matchCount !== null) return `${matchCount} of ${total} · filter: "${query}"`;
+  return `${total} ${total === 1 ? "session" : "sessions"}`;
+}
