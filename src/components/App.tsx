@@ -6,6 +6,7 @@ import { searchBodies } from "../search";
 import { useBlockNav } from "../nav";
 import { blocksToLines } from "../render";
 import { sessionsToRows } from "../listrender";
+import { headerSummary } from "../utils";
 import { SearchBar } from "./SearchBar";
 import { SessionList } from "./SessionList";
 import { SessionDetail } from "./SessionDetail";
@@ -168,7 +169,9 @@ export function App({ onResume }: AppProps = {}) {
       {/* Header */}
       <Box paddingX={1} justifyContent="space-between">
         <Text bold color="cyan">Claude Sessions</Text>
-        <Text dimColor>q to quit</Text>
+        <Text dimColor>
+          {headerSummary(sessions.length, matchedIds ? filteredSessions.length : null, query)}
+        </Text>
       </Box>
 
       {/* Search bar */}
