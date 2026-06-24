@@ -1,7 +1,6 @@
 // src/components/SessionDetail.tsx
 import React from "react";
 import { Box, Text } from "ink";
-import path from "path";
 import { relativeTime } from "../utils";
 import { scrollbar } from "../scrollbar";
 import type { Session } from "../types";
@@ -41,9 +40,8 @@ export function SessionDetail({ session, lines, turnCount, scrollOffset, visible
       </Box>
       <Box marginBottom={1}>
         <Text dimColor>
-          {path.basename(session.filePath)} · {relativeTime(session.updatedAt)} · {turnCount} turns
+          {relativeTime(session.updatedAt)} · {turnCount} {turnCount === 1 ? "turn" : "turns"}
           {scrollable ? ` · ${pct}%` : ""}
-          {focused ? " · scrolling · Ctrl+O expand · Esc to list" : ""}
         </Text>
       </Box>
       <Box flexDirection="row" flexGrow={1}>

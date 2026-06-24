@@ -10,7 +10,7 @@ interface Props {
 export function StatusBar({ focus = "list", hasDetail = false }: Props) {
   const hint =
     focus === "detail"
-      ? "j/k scroll · Ctrl-d/u page · g/G top/bottom · r resume · Esc back · q quit"
+      ? "j/k scroll · Ctrl-d/u page · g/G top/bottom · Ctrl+O expand · r resume · Esc back · q quit"
       : hasDetail
         ? "j/k navigate · / search · enter view · r resume · q quit"
         : "j/k navigate · / search · enter view · q quit";

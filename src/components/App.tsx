@@ -197,7 +197,14 @@ export function App({ onResume }: AppProps = {}) {
         />
         {showDetail && (
           <>
-            <Box borderStyle="single" borderLeft borderRight={false} borderTop={false} borderBottom={false} />
+            <Box
+              borderStyle="single"
+              borderColor={detailFocused ? "cyan" : "gray"}
+              borderLeft
+              borderRight={false}
+              borderTop={false}
+              borderBottom={false}
+            />
             <SessionDetail
               session={selectedSession}
               lines={lines}
