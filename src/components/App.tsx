@@ -3,8 +3,9 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Box, Text, useInput, useStdout, useApp } from "ink";
 import { loadSessions, loadBlocks } from "../sessions";
 import { searchBodies } from "../search";
-import { useVimNav, useBlockNav } from "../nav";
+import { useBlockNav } from "../nav";
 import { blocksToLines } from "../render";
+import { sessionsToRows } from "../listrender";
 import { SearchBar } from "./SearchBar";
 import { SessionList } from "./SessionList";
 import { SessionDetail } from "./SessionDetail";
@@ -70,10 +71,15 @@ export function App({ onResume }: AppProps = {}) {
     }
   };
 
-  const listVisibleRows = termRows - 4;
+  const listPaneWidth = showDetail ? LIST_WIDTH : termCols;
+  const listVisibleRows = Math.max(1, termRows - 4);
   const detailVisibleRows = Math.max(1, termRows - 6);
-  const itemHeight = 3; // each SessionItem takes 3 rows
   const detailWidth = Math.max(20, termCols - LIST_WIDTH - 4);
+
+  const { rows: listRows, ranges: listRanges } = useMemo(
+    () => sessionsToRows(filteredSessions, listPaneWidth),
+    [filteredSessions, listPaneWidth]
+  );
 
   // Flatten the selected conversation into scrollable lines + per-block ranges.
   const { lines, ranges } = useMemo(
@@ -83,9 +89,10 @@ export function App({ onResume }: AppProps = {}) {
 
   const detailFocused = focus === "detail";
 
-  const { index: selectedIndex, offset: listScroll, reset: resetList } = useVimNav(
-    filteredSessions.length,
-    Math.max(1, Math.floor(listVisibleRows / itemHeight)),
+  const { cursor: selectedIndex, offset: listScroll, reset: resetList } = useBlockNav(
+    listRanges,
+    listRows.length,
+    listVisibleRows,
     !searchFocused && focus === "list"
   );
 
@@ -111,7 +118,7 @@ export function App({ onResume }: AppProps = {}) {
   });
 
   // Action keys — inactive while search is focused. j/k are owned by
-  // useVimNav (list) or useBlockNav (detail) depending on focus, so they are
+  // useBlockNav (list or detail) depending on focus, so they are
   // intentionally not handled here.
   useInput(
     (input, key) => {
@@ -178,11 +185,11 @@ export function App({ onResume }: AppProps = {}) {
       {/* Main panes */}
       <Box flexGrow={1} flexDirection="row">
         <SessionList
-          sessions={filteredSessions}
-          selectedIndex={selectedIndex}
+          rows={listRows}
+          cursor={selectedIndex}
           scrollOffset={listScroll}
-          visibleRows={Math.max(1, Math.floor(listVisibleRows / itemHeight))}
-          width={showDetail ? LIST_WIDTH : termCols}
+          visibleRows={listVisibleRows}
+          width={listPaneWidth}
           dimmed={detailFocused}
         />
         {showDetail && (
