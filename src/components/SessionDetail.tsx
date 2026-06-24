@@ -46,10 +46,10 @@ export function SessionDetail({ session, lines, turnCount, scrollOffset, visible
       </Box>
       <Box flexDirection="column">
         {visible.map((ln, i) => {
-          const focused = ln.blockIndex === cursor;
+          const isLineFocused = ln.blockIndex === cursor;
           return (
             <Box key={scrollOffset + i}>
-              <Text color="cyan">{focused ? "▌" : " "}</Text>
+              <Text color="cyan">{isLineFocused ? "▌" : " "}</Text>
               <Text color={ln.color} bold={ln.bold} dimColor={ln.dim} wrap="truncate">
                 {ln.text === "" ? " " : ln.text}
               </Text>
