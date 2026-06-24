@@ -3,6 +3,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import path from "path";
 import { relativeTime } from "../utils";
+import { scrollbar } from "../scrollbar";
 import type { Session } from "../types";
 import type { Line } from "../render";
 
@@ -26,6 +27,7 @@ export function SessionDetail({ session, lines, turnCount, scrollOffset, visible
   }
 
   const visible = lines.slice(scrollOffset, scrollOffset + visibleRows);
+  const bar = scrollbar(scrollOffset, lines.length, visibleRows);
   const maxOffset = Math.max(0, lines.length - visibleRows);
   const scrollable = lines.length > visibleRows;
   const pct = maxOffset === 0 ? 100 : Math.round((scrollOffset / maxOffset) * 100);
@@ -44,21 +46,28 @@ export function SessionDetail({ session, lines, turnCount, scrollOffset, visible
           {focused ? " · scrolling · Ctrl+O expand · Esc to list" : ""}
         </Text>
       </Box>
-      <Box flexDirection="column">
-        {visible.map((ln, i) => {
-          const isLineFocused = ln.blockIndex === cursor;
-          return (
-            <Box key={scrollOffset + i}>
-              <Text color={isLineFocused ? "cyan" : ln.accent} dimColor={!isLineFocused}>
-                {isLineFocused ? "▌" : ln.accent ? "│" : " "}
-              </Text>
-              <Text color={ln.color} bold={ln.bold} dimColor={ln.dim} wrap="truncate">
-                {ln.text === "" ? " " : ln.text}
-              </Text>
-              {isLineFocused && ln.hint ? <Text dimColor>{"   "}{ln.hint}</Text> : null}
-            </Box>
-          );
-        })}
+      <Box flexDirection="row" flexGrow={1}>
+        <Box flexDirection="column" flexGrow={1}>
+          {visible.map((ln, i) => {
+            const isLineFocused = ln.blockIndex === cursor;
+            return (
+              <Box key={scrollOffset + i}>
+                <Text color={isLineFocused ? "cyan" : ln.accent} dimColor={!isLineFocused}>
+                  {isLineFocused ? "▌" : ln.accent ? "│" : " "}
+                </Text>
+                <Text color={ln.color} bold={ln.bold} dimColor={ln.dim} wrap="truncate">
+                  {ln.text === "" ? " " : ln.text}
+                </Text>
+                {isLineFocused && ln.hint ? <Text dimColor>{"   "}{ln.hint}</Text> : null}
+              </Box>
+            );
+          })}
+        </Box>
+        <Box flexDirection="column" width={1}>
+          {bar.map((c, i) => (
+            <Text key={i} dimColor>{c}</Text>
+          ))}
+        </Box>
       </Box>
     </Box>
   );
