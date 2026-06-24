@@ -6,7 +6,7 @@ export interface Session {
   startedAt: Date;     // timestamp of first human message
   updatedAt: Date;     // file mtime
   summary: string;     // first human message content, truncated to 80 chars
-  turnCount: number;   // 0 until full load; updated by loadTurns
+  turnCount: number;   // 0 until full load; updated by loadBlocks
   filePath: string;    // absolute path to .jsonl file
 }
 
