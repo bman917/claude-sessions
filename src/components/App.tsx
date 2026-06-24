@@ -1,6 +1,6 @@
 // src/components/App.tsx
 import React, { useState, useEffect, useMemo } from "react";
-import { Box, Text, useInput, useStdout } from "ink";
+import { Box, Text, useInput, useStdout, useApp } from "ink";
 import { loadSessions, loadTurns } from "../sessions";
 import { createFuse, searchSessions } from "../fuzzy";
 import { useVimNav } from "../nav";
@@ -12,7 +12,14 @@ import type { Session, Turn } from "../types";
 
 const LIST_WIDTH = 35;
 
-export function App() {
+interface AppProps {
+  // Called when the user requests resume. The entry point unmounts Ink
+  // (restoring the terminal) before launching `claude --resume`.
+  onResume?: (session: Session) => void;
+}
+
+export function App({ onResume }: AppProps = {}) {
+  const { exit } = useApp();
   const { stdout } = useStdout();
   const termCols = stdout.columns;
   const termRows = stdout.rows;
@@ -54,9 +61,9 @@ export function App() {
     setTurns([]);
   }, [query]);
 
-  // q quits regardless of mode
+  // q quits regardless of mode — exit() lets Ink restore the terminal cleanly
   useInput((input) => {
-    if (input === "q") process.exit(0);
+    if (input === "q") exit();
   });
 
   // Navigation and action keys — inactive while search is focused
@@ -72,11 +79,10 @@ export function App() {
         setTurnCount(tc);
       }
       if (input === "r" && selectedSession) {
-        Bun.spawn(["claude", "--resume", selectedSession.id], {
-          cwd: selectedSession.projectPath,
-          stdio: ["inherit", "inherit", "inherit"],
-        });
-        process.exit(0);
+        // Hand off to the entry point: it unmounts Ink (restoring terminal
+        // modes and draining query responses) before spawning claude.
+        onResume?.(selectedSession);
+        exit();
       }
     },
     { isActive: !searchFocused }
