@@ -111,7 +111,7 @@ export function App({ onResume }: AppProps = {}) {
   });
 
   // Action keys — inactive while search is focused. j/k are owned by
-  // useVimNav (list) or useScroll (detail) depending on focus, so they are
+  // useVimNav (list) or useBlockNav (detail) depending on focus, so they are
   // intentionally not handled here.
   useInput(
     (input, key) => {
