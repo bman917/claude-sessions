@@ -22,8 +22,8 @@ function CategoryBlock({ category }: { category: Category }) {
 }
 
 export function HelpScreen({ onClose, termCols }: Props) {
-  useInput((input, key) => {
-    if (input === "?" || key.escape) onClose();
+  useInput((_input, key) => {
+    if (key.escape) onClose();
   });
 
   const isTwoColumn = termCols >= 80;
