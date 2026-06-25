@@ -118,7 +118,7 @@ export function App({ onResume }: AppProps = {}) {
   // q quits regardless of mode — exit() lets Ink restore the terminal cleanly
   useInput((input) => {
     if (input === "q") exit();
-    if (input === "?" && !searchFocused) setHelpOpen((v) => !v);
+    if (input === "?" && !searchFocused && !helpOpen) setHelpOpen(true);
   });
 
   // Action keys — inactive while search is focused. j/k are owned by
