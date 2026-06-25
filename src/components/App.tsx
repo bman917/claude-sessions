@@ -11,6 +11,7 @@ import { SearchBar } from "./SearchBar";
 import { SessionList } from "./SessionList";
 import { SessionDetail } from "./SessionDetail";
 import { StatusBar } from "./StatusBar";
+import { HelpScreen } from "./HelpScreen";
 import type { Session, Block } from "../types";
 
 const LIST_WIDTH = 35;
@@ -41,6 +42,7 @@ export function App({ onResume }: AppProps = {}) {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [turnCount, setTurnCount] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Load sessions on mount
   useEffect(() => {
@@ -116,6 +118,7 @@ export function App({ onResume }: AppProps = {}) {
   // q quits regardless of mode — exit() lets Ink restore the terminal cleanly
   useInput((input) => {
     if (input === "q") exit();
+    if (input === "?" && !searchFocused) setHelpOpen((v) => !v);
   });
 
   // Action keys — inactive while search is focused. j/k are owned by
@@ -161,8 +164,12 @@ export function App({ onResume }: AppProps = {}) {
         exit();
       }
     },
-    { isActive: !searchFocused }
+    { isActive: !searchFocused && !helpOpen }
   );
+
+  if (helpOpen) {
+    return <HelpScreen onClose={() => setHelpOpen(false)} termCols={termCols} />;
+  }
 
   return (
     <Box flexDirection="column" height={termRows}>
