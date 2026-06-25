@@ -226,6 +226,9 @@ export function App({ onResume }: AppProps = {}) {
                   visibleRows={detailVisibleRows}
                   focused={detailFocused}
                   cursor={detailCursor}
+                  currentMatch={null}
+                  matchInfo={null}
+                  matchError={null}
                 />
               </>
             )}
