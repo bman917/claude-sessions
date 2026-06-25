@@ -4,7 +4,20 @@ import path from "path";
 import type { Session, Block } from "./types";
 
 const SESSIONS_DIR = path.join(process.env.HOME!, ".claude", "projects");
-const HEADER_LINE_LIMIT = 50;
+
+const SESSION_FILE_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/i;
+
+/**
+ * A real session transcript is a top-level `<uuid>.jsonl` in a project dir.
+ * Recognize sessions by file identity rather than by sampling their contents:
+ * subagent transcripts (`subagents/agent-*.jsonl`), metadata (`*.meta.json`),
+ * and any other stray `.jsonl` are not sessions. This keeps the session list
+ * and full-body (`rg`) search agreeing on what counts as a session.
+ */
+export function isSessionFile(filePath: string): boolean {
+  return SESSION_FILE_RE.test(path.basename(filePath));
+}
 
 function isHumanTypedMessage(entry: Record<string, unknown>): boolean {
   return (
@@ -56,9 +69,12 @@ export function parseLines(
 
 export function parseSessionMetadata(filePath: string): Session | null {
   const stat = statSync(filePath);
+  // Scan the whole transcript for the first human-typed message. `parseLines`
+  // stops at the first match, so the common case (prompt near the top) stays
+  // cheap; resumed/agent-heavy sessions whose first typed prompt is buried deep
+  // (e.g. a `"continue"` past line 50) are still recognized rather than dropped.
   const content = readFileSync(filePath, "utf-8");
-  const lines = content.split("\n").slice(0, HEADER_LINE_LIMIT);
-  return parseLines(lines, filePath, stat.mtime);
+  return parseLines(content.split("\n"), filePath, stat.mtime);
 }
 
 function flattenResultContent(content: unknown): string {
@@ -151,8 +167,8 @@ export function loadSessions(): Session[] {
     let files: string[];
     try {
       files = readdirSync(dir)
-        .filter((f) => f.endsWith(".jsonl"))
-        .map((f) => path.join(dir, f));
+        .map((f) => path.join(dir, f))
+        .filter(isSessionFile);
     } catch {
       continue;
     }

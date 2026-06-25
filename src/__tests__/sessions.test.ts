@@ -1,6 +1,9 @@
 // src/__tests__/sessions.test.ts
 import { describe, it, expect } from "bun:test";
-import { parseLines, entriesToBlocks } from "../sessions";
+import { writeFileSync, mkdtempSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import path from "path";
+import { parseLines, entriesToBlocks, isSessionFile, parseSessionMetadata } from "../sessions";
 import type { Session } from "../types";
 
 const MTIME = new Date("2026-06-23T12:00:00.000Z");
@@ -72,6 +75,54 @@ describe("parseLines", () => {
     const lines = [TOOL_RESULT_LINE, HUMAN_MESSAGE_LINE];
     const session = parseLines(lines, FILE_PATH, MTIME);
     expect(session!.summary).toBe("Help me build something");
+  });
+});
+
+describe("isSessionFile", () => {
+  it("accepts a top-level UUID-named .jsonl", () => {
+    expect(isSessionFile("/p/-Users-test-proj/b27159c8-dcbb-478e-a0bd-c58001e1541a.jsonl")).toBe(true);
+  });
+
+  it("rejects subagent transcripts (non-UUID agent-* names)", () => {
+    expect(isSessionFile("/p/-Users-test-proj/subagents/agent-afa9f58773f2f1068.jsonl")).toBe(false);
+  });
+
+  it("rejects .meta.json metadata files", () => {
+    expect(isSessionFile("/p/-Users-test-proj/subagents/agent-a45916bb7ca0ce01a.meta.json")).toBe(false);
+  });
+
+  it("rejects arbitrary non-UUID .jsonl files", () => {
+    expect(isSessionFile("/p/-Users-test-proj/notes.jsonl")).toBe(false);
+  });
+});
+
+describe("parseSessionMetadata", () => {
+  it("recognizes a session whose first human message is past line 50", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "cs-test-"));
+    const file = path.join(dir, "b27159c8-dcbb-478e-a0bd-c58001e1541a.jsonl");
+    try {
+      const noise = Array.from({ length: 55 }, (_, i) =>
+        JSON.stringify({ type: "system", uuid: `s${i}` })
+      );
+      const human = JSON.stringify({
+        type: "user",
+        uuid: "u1",
+        timestamp: "2026-06-23T10:00:00.000Z",
+        cwd: "/Users/test/myproject",
+        sessionId: "b27159c8-dcbb-478e-a0bd-c58001e1541a",
+        message: { role: "user", content: "continue" },
+        origin: { kind: "human" },
+        promptSource: "typed",
+      });
+      writeFileSync(file, [...noise, human].join("\n"));
+
+      const session = parseSessionMetadata(file);
+      expect(session).not.toBeNull();
+      expect(session!.summary).toBe("continue");
+      expect(session!.projectName).toBe("myproject");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

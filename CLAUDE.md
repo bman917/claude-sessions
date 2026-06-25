@@ -27,13 +27,19 @@ macOS/arm64-only tool.
 Data flows in one direction: filesystem → pure parsers → React state → Ink render.
 
 - **`src/sessions.ts`** — the only filesystem reader. `loadSessions()` scans every
-  project dir under `~/.claude/projects/` and parses lightweight metadata from
-  the first 50 lines of each `.jsonl` (so the list loads fast); `loadBlocks()`
-  reads a full transcript on demand when a session is opened. A session is only
-  recognized via `isHumanTypedMessage` — an entry that is `type: "user"` with
-  `origin.kind === "human"` and `promptSource === "typed"`. This filters out
-  tool results, system messages, and synthetic user turns. Keep `parseLines`
-  pure (it takes lines + mtime) so it stays testable without touching disk.
+  project dir under `~/.claude/projects/` and, for each file passing
+  `isSessionFile` (a top-level `<uuid>.jsonl` — excludes `subagents/agent-*.jsonl`
+  and `*.meta.json`, so the list and `rg` search agree on what's a session),
+  parses lightweight metadata; `loadBlocks()` reads a full transcript on demand
+  when a session is opened. A session is only recognized via `isHumanTypedMessage`
+  — an entry that is `type: "user"` with `origin.kind === "human"` and
+  `promptSource === "typed"`. This filters out tool results, system messages, and
+  synthetic user turns. `parseSessionMetadata` scans the whole transcript for the
+  *first* such message (`parseLines` stops at the first match, so the common case
+  stays cheap); there is no fixed line cap, so resumed/agent-heavy sessions whose
+  first typed prompt is buried deep (e.g. a `"continue"` past line 50) are still
+  listed rather than dropped. Keep `parseLines` pure (it takes lines + mtime) so
+  it stays testable without touching disk.
   `entriesToBlocks` builds the `Block[]` for the detail view; tool results are
   back-filled into the corresponding `tool_use` block via a `toolById` map as
   the entries are streamed.
