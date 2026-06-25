@@ -49,6 +49,16 @@ export const CATEGORIES: Category[] = [
       { key: "Ctrl+o",   description: "expand / collapse block" },
     ],
   },
+  {
+    title: "REGEX TIPS",
+    bindings: [
+      { key: "foo|bar",       description: "OR — matches either word" },
+      { key: "a.*b|b.*a",    description: "AND — both words, any order" },
+      { key: "\\bword\\b",   description: "word boundary (exact word)" },
+      { key: "[abc]",         description: "character class" },
+      { key: "(?=...)",       description: "lookaheads not supported" },
+    ],
+  },
 ];
 
 export function splitColumns(
