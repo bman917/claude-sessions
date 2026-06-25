@@ -109,3 +109,25 @@ describe("computeBlockScroll", () => {
     expect(computeBlockScroll({ cursor: 3, offset: 9 }, "down", [], 0, 5)).toEqual({ cursor: 0, offset: 0 });
   });
 });
+
+import { computeScrollTo } from "../nav";
+
+describe("computeScrollTo", () => {
+  it("centers the target line in the viewport", () => {
+    // lineIndex=10, visibleRows=5 → center offset = 10 - floor(5/2) = 8
+    expect(computeScrollTo(10, 5, 20)).toBe(8);
+  });
+
+  it("clamps to 0 when line is near the top", () => {
+    expect(computeScrollTo(1, 5, 20)).toBe(0);
+  });
+
+  it("clamps to maxOffset at the bottom", () => {
+    // maxOffset = 20 - 5 = 15; line 18 would center at 16 > 15 → clamp to 15
+    expect(computeScrollTo(18, 5, 20)).toBe(15);
+  });
+
+  it("returns 0 when totalLines <= visibleRows", () => {
+    expect(computeScrollTo(2, 5, 4)).toBe(0);
+  });
+});

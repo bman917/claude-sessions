@@ -151,12 +151,22 @@ export function computeBlockScroll(
   }
 }
 
+export function computeScrollTo(
+  lineIndex: number,
+  visibleRows: number,
+  totalLines: number
+): number {
+  const maxOffset = Math.max(0, totalLines - visibleRows);
+  const ideal = lineIndex - Math.floor(visibleRows / 2);
+  return Math.max(0, Math.min(ideal, maxOffset));
+}
+
 export function useBlockNav(
   ranges: Range[],
   totalLines: number,
   visibleRows: number,
   enabled: boolean
-): { cursor: number; offset: number; reset: () => void } {
+): { cursor: number; offset: number; reset: () => void; jumpTo: (lineIndex: number, blockIndex: number) => void } {
   const [state, setState] = useState({ cursor: 0, offset: 0 });
   const lastGTime = useRef(0);
 
@@ -189,5 +199,11 @@ export function useBlockNav(
   );
 
   const reset = () => setState({ cursor: 0, offset: 0 });
-  return { cursor: state.cursor, offset: state.offset, reset };
+  const jumpTo = (lineIndex: number, blockIndex: number) => {
+    setState((prev) => ({
+      cursor: Math.max(0, Math.min(blockIndex, ranges.length - 1)),
+      offset: computeScrollTo(lineIndex, visibleRows, totalLines),
+    }));
+  };
+  return { cursor: state.cursor, offset: state.offset, reset, jumpTo };
 }
