@@ -147,6 +147,8 @@ export function App({ onResume }: AppProps = {}) {
   useEffect(() => {
     if (matches.length > 0) {
       setDMatchIdx((prev) => Math.min(prev, matches.length - 1));
+    } else {
+      setDMatchIdx(0);
     }
   }, [matches.length]);
 
@@ -164,11 +166,16 @@ export function App({ onResume }: AppProps = {}) {
     !searchFocused && !dFocused && detailFocused
   );
 
+  // Ref so the jump effect always calls the latest jumpToDetail without
+  // adding it to deps (it's a new reference every render from useBlockNav).
+  const jumpToDetailRef = useRef(jumpToDetail);
+  jumpToDetailRef.current = jumpToDetail;
+
   // Jump to the current match whenever matchIdx or matches change.
   useEffect(() => {
     if (matches.length > 0 && dPattern) {
       const m = matches[dMatchIdx];
-      jumpToDetail(m.lineIndex, m.blockIndex);
+      jumpToDetailRef.current(m.lineIndex, m.blockIndex);
     }
   }, [dMatchIdx, matches]);
 
