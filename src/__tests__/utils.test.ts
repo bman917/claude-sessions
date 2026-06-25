@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { truncateEnd, headerSummary } from "../utils";
+import { truncateEnd, headerSummary, relativeTime } from "../utils";
 
 describe("truncateEnd", () => {
   it("returns the string unchanged when it fits", () => {
@@ -22,5 +22,26 @@ describe("headerSummary", () => {
   });
   it("shows the active filter and ratio", () => {
     expect(headerSummary(42, 3, "kube")).toBe('3 of 42 · filter: "kube"');
+  });
+});
+
+describe("relativeTime", () => {
+  const NOW = new Date(2026, 5, 24, 12, 0, 0);
+
+  it("returns minutes ago", () => {
+    const date = new Date(2026, 5, 24, 11, 45, 0); // 15 minutes before
+    expect(relativeTime(date, NOW)).toBe("15m ago");
+  });
+  it("returns hours ago", () => {
+    const date = new Date(2026, 5, 24, 11, 0, 0); // 1 hour before
+    expect(relativeTime(date, NOW)).toBe("1h ago");
+  });
+  it("returns days ago", () => {
+    const date = new Date(2026, 5, 21, 12, 0, 0); // 3 days before
+    expect(relativeTime(date, NOW)).toBe("3d ago");
+  });
+  it("returns weeks ago", () => {
+    const date = new Date(2026, 5, 10, 12, 0, 0); // 14 days = 2 weeks before
+    expect(relativeTime(date, NOW)).toBe("2w ago");
   });
 });

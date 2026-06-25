@@ -47,7 +47,7 @@ export function sessionsToRows(
       rows.push({ kind: "header", text: bucket });
       lastBucket = bucket;
     }
-    rows.push({ kind: "item-name", sessionIndex: i, text: nameLine(s.projectName, relativeTime(s.updatedAt), cw) });
+    rows.push({ kind: "item-name", sessionIndex: i, text: nameLine(s.projectName, relativeTime(s.updatedAt, now), cw) });
     rows.push({ kind: "item-summary", sessionIndex: i, text: pad(truncateEnd(`"${s.summary}"`, cw), cw) });
     ranges.push({ start, len: rows.length - start });
   });

@@ -1,6 +1,6 @@
 // src/utils.ts
-export function relativeTime(date: Date): string {
-  const diff = Date.now() - date.getTime();
+export function relativeTime(date: Date, now: Date = new Date()): string {
+  const diff = now.getTime() - date.getTime();
   const mins = Math.floor(diff / 60_000);
   const hours = Math.floor(diff / 3_600_000);
   const days = Math.floor(diff / 86_400_000);
