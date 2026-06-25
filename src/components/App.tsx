@@ -7,7 +7,10 @@ import { useBlockNav } from "../nav";
 import { blocksToLines } from "../render";
 import { sessionsToRows } from "../listrender";
 import { headerSummary } from "../utils";
+import { compileQuery, findMatches, findBlocksMatching } from "../insearch";
+import type { Match } from "../insearch";
 import { SearchBar } from "./SearchBar";
+import { DetailSearchBar } from "./DetailSearchBar";
 import { SessionList } from "./SessionList";
 import { SessionDetail } from "./SessionDetail";
 import { StatusBar } from "./StatusBar";
@@ -49,6 +52,13 @@ export function App({ onResume }: AppProps = {}) {
   const helpOpenRef = useRef(false);
   helpOpenRef.current = helpOpen;
 
+  // Detail-pane (in-session) search state
+  const [dQuery, setDQuery] = useState("");
+  const [dPattern, setDPattern] = useState<string | null>(null);
+  const [dFocused, setDFocused] = useState(false);
+  const [dMatchIdx, setDMatchIdx] = useState(0);
+  const [dError, setDError] = useState<string | null>(null);
+
   // Load sessions on mount
   useEffect(() => {
     const loaded = loadSessions();
@@ -79,6 +89,31 @@ export function App({ onResume }: AppProps = {}) {
     }
   };
 
+  const handleDetailSearchSubmit = (q: string) => {
+    setDFocused(false);
+    if (!q.trim()) {
+      setDPattern(null);
+      setDError(null);
+      return;
+    }
+    const re = compileQuery(q);
+    if (!re) {
+      setDError("invalid regex");
+      setDFocused(true); // keep prompt open
+      return;
+    }
+    // Auto-expand all blocks that contain matches.
+    const matchingBlocks = findBlocksMatching(blocks, detailWidth, re);
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (const idx of matchingBlocks) next.add(idx);
+      return next;
+    });
+    setDPattern(q);
+    setDMatchIdx(0);
+    setDError(null);
+  };
+
   const listPaneWidth = showDetail ? LIST_WIDTH : termCols;
   // Overhead: 1 (header) + 3 (SearchBar round border) + 2 (StatusBar top border + text) = 6
   const listVisibleRows = Math.max(1, termRows - 6);
@@ -98,6 +133,23 @@ export function App({ onResume }: AppProps = {}) {
 
   const detailFocused = focus === "detail";
 
+  // Derive matches from active pattern + currently rendered lines.
+  const dRegex = useMemo(
+    () => (dPattern ? compileQuery(dPattern) : null),
+    [dPattern]
+  );
+  const matches: Match[] = useMemo(
+    () => (dRegex ? findMatches(lines, dRegex) : []),
+    [lines, dRegex]
+  );
+
+  // Clamp matchIdx when matches shrinks (expand/collapse/resize reflow).
+  useEffect(() => {
+    if (matches.length > 0) {
+      setDMatchIdx((prev) => Math.min(prev, matches.length - 1));
+    }
+  }, [matches.length]);
+
   const { cursor: selectedIndex, offset: listScroll, reset: resetList } = useBlockNav(
     listRanges,
     listRows.length,
@@ -105,12 +157,35 @@ export function App({ onResume }: AppProps = {}) {
     !searchFocused && focus === "list"
   );
 
-  const { cursor: detailCursor, offset: detailScroll, reset: resetDetailScroll } = useBlockNav(
+  const { cursor: detailCursor, offset: detailScroll, reset: resetDetailScroll, jumpTo: jumpToDetail } = useBlockNav(
     ranges,
     lines.length,
     detailVisibleRows,
-    !searchFocused && detailFocused
+    !searchFocused && !dFocused && detailFocused
   );
+
+  // Jump to the current match whenever matchIdx or matches change.
+  useEffect(() => {
+    if (matches.length > 0 && dPattern) {
+      const m = matches[dMatchIdx];
+      jumpToDetail(m.lineIndex, m.blockIndex);
+    }
+  }, [dMatchIdx, matches]);
+
+  // Reset detail-search when the selected session changes.
+  useEffect(() => {
+    setDQuery("");
+    setDPattern(null);
+    setDFocused(false);
+    setDMatchIdx(0);
+    setDError(null);
+  }, [selectedSession?.id]);
+
+  const currentMatch = matches.length > 0 ? matches[dMatchIdx] : null;
+  const matchInfo =
+    dPattern
+      ? { index: dMatchIdx, total: matches.length }
+      : null;
 
   // Reset everything when the applied filter changes
   useEffect(() => {
@@ -133,7 +208,16 @@ export function App({ onResume }: AppProps = {}) {
   useInput(
     (input, key) => {
       if (key.escape) {
-        if (detailFocused) setFocus("list");
+        if (detailFocused) {
+          if (dPattern) {
+            // First Esc clears in-session search; second Esc returns to list.
+            setDPattern(null);
+            setDQuery("");
+            setDError(null);
+          } else {
+            setFocus("list");
+          }
+        }
         return;
       }
       if (key.ctrl && input === "o" && detailFocused) {
@@ -147,6 +231,15 @@ export function App({ onResume }: AppProps = {}) {
       }
       if (input === "/") {
         if (focus === "list") setSearchFocused(true);
+        else if (focus === "detail") setDFocused(true);
+        return;
+      }
+      if (input === "n" && detailFocused && dPattern) {
+        setDMatchIdx((prev) => (matches.length === 0 ? 0 : (prev + 1) % matches.length));
+        return;
+      }
+      if (input === "N" && detailFocused && dPattern) {
+        setDMatchIdx((prev) => (matches.length === 0 ? 0 : (prev - 1 + matches.length) % matches.length));
         return;
       }
       if (key.return && focus === "list") {
@@ -170,7 +263,7 @@ export function App({ onResume }: AppProps = {}) {
         exit();
       }
     },
-    { isActive: !searchFocused && !helpOpen }
+    { isActive: !searchFocused && !helpOpen && !dFocused }
   );
 
   return (
@@ -226,13 +319,25 @@ export function App({ onResume }: AppProps = {}) {
                   visibleRows={detailVisibleRows}
                   focused={detailFocused}
                   cursor={detailCursor}
-                  currentMatch={null}
-                  matchInfo={null}
-                  matchError={null}
+                  currentMatch={currentMatch}
+                  matchInfo={matchInfo}
+                  matchError={dError}
                 />
               </>
             )}
           </Box>
+
+          {/* Detail search prompt — shown only while dFocused */}
+          {dFocused && (
+            <DetailSearchBar
+              query={dQuery}
+              focused={dFocused}
+              error={dError}
+              onChange={setDQuery}
+              onSubmit={handleDetailSearchSubmit}
+              onCancel={() => setDFocused(false)}
+            />
+          )}
 
           {/* Status bar */}
           <StatusBar focus={focus} hasDetail={showDetail && selectedSession !== null} />
