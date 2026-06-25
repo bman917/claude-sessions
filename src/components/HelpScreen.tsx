@@ -4,6 +4,7 @@ import { CATEGORIES, splitColumns, type Category } from "../help";
 
 interface Props {
   onClose: () => void;
+  termCols: number;
 }
 
 function CategoryBlock({ category }: { category: Category }) {
@@ -20,12 +21,13 @@ function CategoryBlock({ category }: { category: Category }) {
   );
 }
 
-export function HelpScreen({ onClose }: Props) {
+export function HelpScreen({ onClose, termCols }: Props) {
   useInput((input, key) => {
     if (input === "?" || key.escape) onClose();
   });
 
-  const [left, right] = splitColumns(CATEGORIES, 2);
+  const isTwoColumn = termCols >= 80;
+  const [left, right] = isTwoColumn ? splitColumns(CATEGORIES, 2) : [CATEGORIES, []];
 
   return (
     <Box flexDirection="column" paddingX={2} paddingY={1}>
@@ -33,13 +35,15 @@ export function HelpScreen({ onClose }: Props) {
         <Text bold color="cyan">Claude Sessions — Help</Text>
       </Box>
 
-      <Box flexDirection="row" gap={4} flexGrow={1}>
+      <Box flexDirection={isTwoColumn ? "row" : "column"} gap={isTwoColumn ? 4 : 0} flexGrow={1}>
         <Box flexDirection="column" flexGrow={1}>
           {left.map((cat) => <CategoryBlock key={cat.title} category={cat} />)}
         </Box>
-        <Box flexDirection="column" flexGrow={1}>
-          {right.map((cat) => <CategoryBlock key={cat.title} category={cat} />)}
-        </Box>
+        {isTwoColumn && (
+          <Box flexDirection="column" flexGrow={1}>
+            {right.map((cat) => <CategoryBlock key={cat.title} category={cat} />)}
+          </Box>
+        )}
       </Box>
 
       <Box justifyContent="center" marginTop={1}>
