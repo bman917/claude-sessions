@@ -42,7 +42,7 @@ export function SearchBar({
       justifyContent="space-between"
     >
       <Box>
-        <Text color={focused ? "cyan" : "gray"}>{"🔍 "}</Text>
+        <Text color={focused ? "cyan" : "gray"}>{"/ "}</Text>
         {view.showPlaceholder ? (
           <Text dimColor>Search transcripts  (press /)</Text>
         ) : (
