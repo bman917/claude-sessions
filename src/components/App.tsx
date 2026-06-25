@@ -1,5 +1,5 @@
 // src/components/App.tsx
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Box, Text, useInput, useStdout, useApp } from "ink";
 import { loadSessions, loadBlocks } from "../sessions";
 import { searchBodies } from "../search";
@@ -43,6 +43,11 @@ export function App({ onResume }: AppProps = {}) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [turnCount, setTurnCount] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Ref so the useInput closure always reads the current value without re-registering.
+  // Ink's useInput captures a closure; without this, double-registration on re-render
+  // causes v=>!v to fire twice and cancel out.
+  const helpOpenRef = useRef(false);
+  helpOpenRef.current = helpOpen;
 
   // Load sessions on mount
   useEffect(() => {
@@ -118,7 +123,7 @@ export function App({ onResume }: AppProps = {}) {
   // q quits regardless of mode — exit() lets Ink restore the terminal cleanly
   useInput((input) => {
     if (input === "q") exit();
-    if (input === "?" && !searchFocused) setHelpOpen((v) => !v);
+    if (input === "?" && !searchFocused) setHelpOpen(!helpOpenRef.current);
   });
 
   // Action keys — inactive while search is focused. j/k are owned by
@@ -167,66 +172,68 @@ export function App({ onResume }: AppProps = {}) {
     { isActive: !searchFocused && !helpOpen }
   );
 
-  if (helpOpen) {
-    return <HelpScreen onClose={() => setHelpOpen(false)} termCols={termCols} />;
-  }
-
   return (
     <Box flexDirection="column" height={termRows}>
-      {/* Header */}
-      <Box paddingX={1} justifyContent="space-between">
-        <Text bold color="cyan">Claude Sessions</Text>
-        <Text dimColor>
-          {headerSummary(sessions.length, matchedIds ? filteredSessions.length : null, query)}
-        </Text>
-      </Box>
+      {helpOpen ? (
+        <HelpScreen onClose={() => setHelpOpen(false)} termCols={termCols} />
+      ) : (
+        <>
+          {/* Header */}
+          <Box paddingX={1} justifyContent="space-between">
+            <Text bold color="cyan">Claude Sessions</Text>
+            <Text dimColor>
+              {headerSummary(sessions.length, matchedIds ? filteredSessions.length : null, query)}
+            </Text>
+          </Box>
 
-      {/* Search bar */}
-      <SearchBar
-        query={query}
-        focused={searchFocused}
-        onChange={setQuery}
-        onSubmit={handleSearchSubmit}
-        onExit={() => setSearchFocused(false)}
-        matchCount={matchedIds ? filteredSessions.length : null}
-        error={searchError}
-      />
+          {/* Search bar */}
+          <SearchBar
+            query={query}
+            focused={searchFocused}
+            onChange={setQuery}
+            onSubmit={handleSearchSubmit}
+            onExit={() => setSearchFocused(false)}
+            matchCount={matchedIds ? filteredSessions.length : null}
+            error={searchError}
+          />
 
-      {/* Main panes */}
-      <Box flexGrow={1} flexDirection="row">
-        <SessionList
-          rows={listRows}
-          cursor={selectedIndex}
-          scrollOffset={listScroll}
-          visibleRows={listVisibleRows}
-          width={listPaneWidth}
-          dimmed={detailFocused}
-        />
-        {showDetail && (
-          <>
-            <Box
-              borderStyle="single"
-              borderColor={detailFocused ? "cyan" : "gray"}
-              borderLeft
-              borderRight={false}
-              borderTop={false}
-              borderBottom={false}
+          {/* Main panes */}
+          <Box flexGrow={1} flexDirection="row">
+            <SessionList
+              rows={listRows}
+              cursor={selectedIndex}
+              scrollOffset={listScroll}
+              visibleRows={listVisibleRows}
+              width={listPaneWidth}
+              dimmed={detailFocused}
             />
-            <SessionDetail
-              session={selectedSession}
-              lines={lines}
-              turnCount={turnCount}
-              scrollOffset={detailScroll}
-              visibleRows={detailVisibleRows}
-              focused={detailFocused}
-              cursor={detailCursor}
-            />
-          </>
-        )}
-      </Box>
+            {showDetail && (
+              <>
+                <Box
+                  borderStyle="single"
+                  borderColor={detailFocused ? "cyan" : "gray"}
+                  borderLeft
+                  borderRight={false}
+                  borderTop={false}
+                  borderBottom={false}
+                />
+                <SessionDetail
+                  session={selectedSession}
+                  lines={lines}
+                  turnCount={turnCount}
+                  scrollOffset={detailScroll}
+                  visibleRows={detailVisibleRows}
+                  focused={detailFocused}
+                  cursor={detailCursor}
+                />
+              </>
+            )}
+          </Box>
 
-      {/* Status bar */}
-      <StatusBar focus={focus} hasDetail={showDetail && selectedSession !== null} />
+          {/* Status bar */}
+          <StatusBar focus={focus} hasDetail={showDetail && selectedSession !== null} />
+        </>
+      )}
     </Box>
   );
 }
