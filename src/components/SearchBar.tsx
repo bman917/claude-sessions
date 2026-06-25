@@ -78,7 +78,7 @@ export function SearchBar({
       <Box>
         <Text color={focused ? "cyan" : "gray"}>{"/ "}</Text>
         {view.showPlaceholder ? (
-          <Text dimColor>Search transcripts  (press /)</Text>
+          <Text dimColor>Regex search  (press /)</Text>
         ) : focused ? (
           <>
             <Text>{before}</Text>

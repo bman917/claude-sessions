@@ -25,6 +25,8 @@ export function searchBarView(p: {
       text: `${p.matchCount} ${p.matchCount === 1 ? "match" : "matches"}`,
       color: "cyan",
     };
+  } else if (p.focused) {
+    status = { text: "regex" };
   }
 
   return { borderColor, showPlaceholder, status };

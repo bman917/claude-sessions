@@ -9,10 +9,11 @@ describe("searchBarView", () => {
     expect(v.status).toBeNull();
   });
 
-  it("turns cyan and hides the placeholder when focused", () => {
+  it("turns cyan, hides the placeholder, and shows regex hint when focused", () => {
     const v = searchBarView({ query: "kube", focused: true, matchCount: null, error: null });
     expect(v.borderColor).toBe("cyan");
     expect(v.showPlaceholder).toBe(false);
+    expect(v.status).toEqual({ text: "regex" });
   });
 
   it("stays cyan with a chip while a filter is active but unfocused", () => {

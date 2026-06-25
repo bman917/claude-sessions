@@ -27,17 +27,18 @@ export type SearchResult =
   | { ok: false; error: "rg-missing" | "rg-error" };
 
 /**
- * Run `rg -l -F -S -- <query> <dir>` and return the matching session IDs.
+ * Run `rg -l -S -- <query> <dir>` and return the matching session IDs.
  *
- * Flags: `-l` files-with-matches only, `-F` fixed-string (literal) search,
- * `-S` smart-case, `--` ends flag parsing so a query starting with `-` is
- * treated as text. Exit code 1 (no matches) is not an error — it yields an
- * empty set.
+ * Flags: `-l` files-with-matches only, `-S` smart-case (lowercase query →
+ * case-insensitive, any uppercase → case-sensitive), `--` ends flag parsing
+ * so a query starting with `-` is treated as a pattern. Query is a regex;
+ * an invalid pattern yields exit code 2, surfaced as `rg-error`. Exit code
+ * 1 (no matches) is not an error — it yields an empty set.
  */
 export function searchBodies(query: string, dir: string = SESSIONS_DIR): SearchResult {
   let proc: { exitCode: number | null; stdout: Buffer };
   try {
-    proc = Bun.spawnSync(["rg", "-l", "-F", "-S", "--", query, dir]);
+    proc = Bun.spawnSync(["rg", "-l", "-S", "--", query, dir]);
   } catch (err: any) {
     if (err?.code === "ENOENT") return { ok: false, error: "rg-missing" };
     return { ok: false, error: "rg-error" };

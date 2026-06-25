@@ -33,7 +33,7 @@ export const CATEGORIES: Category[] = [
   {
     title: "SEARCH",
     bindings: [
-      { key: "/",           description: "open search" },
+      { key: "/",           description: "open search (regex, smart-case)" },
       { key: "Enter",       description: "submit" },
       { key: "Esc",         description: "close search" },
       { key: "← → Ctrl+f/b", description: "move cursor" },
