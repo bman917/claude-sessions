@@ -55,7 +55,7 @@ export function DetailSearchBar({ query, focused, error, onChange, onSubmit, onC
   const after = query.slice(cursor + 1);
 
   return (
-    <Box paddingX={1}>
+    <Box borderStyle="single" borderTop borderBottom={false} borderLeft={false} borderRight={false} borderColor="cyan" paddingX={1}>
       <Text color="cyan">{"/ "}</Text>
       {query === "" && !error ? (
         <Text dimColor>Search in session…</Text>
