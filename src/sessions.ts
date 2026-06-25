@@ -28,6 +28,37 @@ function isHumanTypedMessage(entry: Record<string, unknown>): boolean {
   );
 }
 
+const COMMAND_NAME_RE = /<command-name>([^<]*)<\/command-name>/;
+const COMMAND_ARGS_RE = /<command-args>([\s\S]*?)<\/command-args>/;
+
+/**
+ * Slash-command invocations (e.g. `/dev-tools:work-jira CONN-3076`) are logged
+ * as `type:"user"` entries with no `origin`/`promptSource`; their string content
+ * is a `<command-name>`/`<command-args>` wrapper. Extract a clean
+ * `/name args` string, or null if the content isn't a slash command. The
+ * `<command-name>` already includes the leading slash.
+ */
+function slashCommandText(content: unknown): string | null {
+  if (typeof content !== "string") return null;
+  const name = content.match(COMMAND_NAME_RE)?.[1].trim();
+  if (!name) return null;
+  const args = content.match(COMMAND_ARGS_RE)?.[1].trim();
+  return args ? `${name} ${args}` : name;
+}
+
+/**
+ * The display text of a user-initiated prompt — a typed human message or a
+ * slash-command invocation — or null for tool results and synthetic turns.
+ * Both the list (first prompt → summary) and the detail view rely on this so
+ * a session's opening turn is never dropped just because it was a slash command.
+ */
+function userPromptText(entry: Record<string, unknown>): string | null {
+  if (entry.type !== "user") return null;
+  const content = (entry as any).message?.content;
+  if (isHumanTypedMessage(entry)) return content as string;
+  return slashCommandText(content);
+}
+
 export function parseLines(
   lines: string[],
   filePath: string,
@@ -35,6 +66,7 @@ export function parseLines(
 ): Session | null {
   const sessionId = path.basename(filePath, ".jsonl");
   let firstHuman: Record<string, unknown> | null = null;
+  let promptText: string | null = null;
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -44,8 +76,10 @@ export function parseLines(
     } catch {
       continue;
     }
-    if (isHumanTypedMessage(entry)) {
+    const text = userPromptText(entry);
+    if (text !== null) {
       firstHuman = entry;
+      promptText = text;
       break;
     }
   }
@@ -53,7 +87,6 @@ export function parseLines(
   if (!firstHuman) return null;
 
   const cwd = (firstHuman as any).cwd as string;
-  const content = (firstHuman as any).message.content as string;
 
   return {
     id: sessionId,
@@ -61,7 +94,7 @@ export function parseLines(
     projectName: path.basename(cwd),
     startedAt: new Date((firstHuman as any).timestamp),
     updatedAt: mtime,
-    summary: content.slice(0, 80),
+    summary: promptText!.slice(0, 80),
     turnCount: 0,
     filePath,
   };
@@ -96,8 +129,9 @@ export function entriesToBlocks(
   let turnCount = 0;
 
   for (const entry of entries) {
-    if (isHumanTypedMessage(entry)) {
-      blocks.push({ kind: "user", text: (entry as any).message.content as string });
+    const prompt = userPromptText(entry);
+    if (prompt !== null) {
+      blocks.push({ kind: "user", text: prompt });
       turnCount++;
       continue;
     }

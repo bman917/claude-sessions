@@ -31,13 +31,16 @@ Data flows in one direction: filesystem → pure parsers → React state → Ink
   `isSessionFile` (a top-level `<uuid>.jsonl` — excludes `subagents/agent-*.jsonl`
   and `*.meta.json`, so the list and `rg` search agree on what's a session),
   parses lightweight metadata; `loadBlocks()` reads a full transcript on demand
-  when a session is opened. A session is only recognized via `isHumanTypedMessage`
-  — an entry that is `type: "user"` with `origin.kind === "human"` and
-  `promptSource === "typed"`. This filters out tool results, system messages, and
-  synthetic user turns. `parseSessionMetadata` scans the whole transcript for the
-  *first* such message (`parseLines` stops at the first match, so the common case
+  when a session is opened. A user-initiated prompt is recognized via
+  `userPromptText` — either a typed human message (`type:"user"` with
+  `origin.kind === "human"` and `promptSource === "typed"`) or a slash-command
+  invocation (`type:"user"` whose string content carries a `<command-name>`
+  wrapper, surfaced as `/name args`). This filters out tool results, system
+  messages, and synthetic user turns while still capturing the command that opened
+  the session. `parseSessionMetadata` scans the whole transcript for the
+  *first* such prompt (`parseLines` stops at the first match, so the common case
   stays cheap); there is no fixed line cap, so resumed/agent-heavy sessions whose
-  first typed prompt is buried deep (e.g. a `"continue"` past line 50) are still
+  first prompt is buried deep (e.g. a `"continue"` past line 50) are still
   listed rather than dropped. Keep `parseLines` pure (it takes lines + mtime) so
   it stays testable without touching disk.
   `entriesToBlocks` builds the `Block[]` for the detail view; tool results are

@@ -76,6 +76,24 @@ describe("parseLines", () => {
     const session = parseLines(lines, FILE_PATH, MTIME);
     expect(session!.summary).toBe("Help me build something");
   });
+
+  it("uses a leading slash command as the session summary", () => {
+    const cmd = JSON.stringify({
+      type: "user",
+      timestamp: "2026-06-23T10:00:00.000Z",
+      cwd: "/Users/test/myproject",
+      message: {
+        role: "user",
+        content:
+          "<command-message>dev-tools:work-jira</command-message>\n<command-name>/dev-tools:work-jira</command-name>\n<command-args>CONN-3076</command-args>",
+      },
+    });
+    const session = parseLines([cmd], FILE_PATH, MTIME);
+    expect(session).not.toBeNull();
+    expect(session!.summary).toBe("/dev-tools:work-jira CONN-3076");
+    expect(session!.projectName).toBe("myproject");
+    expect(session!.startedAt).toEqual(new Date("2026-06-23T10:00:00.000Z"));
+  });
 });
 
 describe("isSessionFile", () => {
@@ -261,6 +279,39 @@ describe("entriesToBlocks", () => {
       },
     ]);
     expect(blocks).toEqual([{ kind: "tool", name: "Bash", input: {} }]);
+  });
+
+  it("renders a slash-command invocation as a user block", () => {
+    const { blocks, turnCount } = entriesToBlocks([
+      {
+        type: "user",
+        message: {
+          role: "user",
+          content:
+            "<command-message>dev-tools:work-jira</command-message>\n<command-name>/dev-tools:work-jira</command-name>\n<command-args>CONN-3076 fix it</command-args>",
+        },
+      },
+      { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "On it" }] } },
+    ]);
+    expect(blocks).toEqual([
+      { kind: "user", text: "/dev-tools:work-jira CONN-3076 fix it" },
+      { kind: "assistant", text: "On it" },
+    ]);
+    expect(turnCount).toBe(1);
+  });
+
+  it("renders a slash command with no args as just the command name", () => {
+    const { blocks } = entriesToBlocks([
+      {
+        type: "user",
+        message: {
+          role: "user",
+          content:
+            "<command-message>plat-session</command-message>\n<command-name>/plat-session</command-name>\n<command-args></command-args>",
+        },
+      },
+    ]);
+    expect(blocks).toEqual([{ kind: "user", text: "/plat-session" }]);
   });
 
   it("ignores empty text blocks and non-typed user entries", () => {
