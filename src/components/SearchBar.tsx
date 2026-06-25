@@ -1,5 +1,5 @@
 // src/components/SearchBar.tsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Text, useInput } from "ink";
 import { searchBarView } from "../searchbar";
 
@@ -22,17 +22,51 @@ export function SearchBar({
   matchCount,
   error,
 }: Props) {
+  const [cursor, setCursor] = useState(query.length);
+
+  useEffect(() => {
+    setCursor((c) => Math.min(c, query.length));
+  }, [query.length]);
+
   useInput(
     (input, key) => {
       if (key.escape) { onExit(); return; }
-      if (key.backspace || key.delete) { onChange(query.slice(0, -1)); return; }
       if (key.return) { onSubmit(query); return; }
-      if (!key.ctrl && !key.meta && input) onChange(query + input);
+
+      if (key.leftArrow)  { setCursor((c) => Math.max(0, c - 1)); return; }
+      if (key.rightArrow) { setCursor((c) => Math.min(query.length, c + 1)); return; }
+
+      if (key.ctrl) {
+        if (input === "a") { setCursor(0); return; }
+        if (input === "e") { setCursor(query.length); return; }
+        if (input === "f") { setCursor((c) => Math.min(query.length, c + 1)); return; }
+        if (input === "b") { setCursor((c) => Math.max(0, c - 1)); return; }
+        if (input === "u") { onChange(query.slice(cursor)); setCursor(0); return; }
+        if (input === "l") { onChange(""); setCursor(0); return; }
+        return;
+      }
+
+      if (key.backspace || key.delete) {
+        if (cursor > 0) {
+          onChange(query.slice(0, cursor - 1) + query.slice(cursor));
+          setCursor(cursor - 1);
+        }
+        return;
+      }
+
+      if (!key.meta && input) {
+        onChange(query.slice(0, cursor) + input + query.slice(cursor));
+        setCursor(cursor + input.length);
+      }
     },
     { isActive: focused }
   );
 
   const view = searchBarView({ query, focused, matchCount, error });
+
+  const before = query.slice(0, cursor);
+  const atCursor = query[cursor] ?? "";
+  const after = query.slice(cursor + 1);
 
   return (
     <Box
@@ -45,10 +79,15 @@ export function SearchBar({
         <Text color={focused ? "cyan" : "gray"}>{"/ "}</Text>
         {view.showPlaceholder ? (
           <Text dimColor>Search transcripts  (press /)</Text>
+        ) : focused ? (
+          <>
+            <Text>{before}</Text>
+            <Text backgroundColor="gray" color="black">{atCursor || " "}</Text>
+            <Text>{after}</Text>
+          </>
         ) : (
           <Text>{query}</Text>
         )}
-        {focused && <Text color="gray">{"█"}</Text>}
       </Box>
       {view.status && <Text color={view.status.color}>{view.status.text}</Text>}
     </Box>
