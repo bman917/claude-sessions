@@ -80,7 +80,8 @@ export function App({ onResume }: AppProps = {}) {
   };
 
   const listPaneWidth = showDetail ? LIST_WIDTH : termCols;
-  const listVisibleRows = Math.max(1, termRows - 4);
+  // Overhead: 1 (header) + 3 (SearchBar round border) + 2 (StatusBar top border + text) = 6
+  const listVisibleRows = Math.max(1, termRows - 6);
   const detailVisibleRows = Math.max(1, termRows - 6);
   const detailWidth = Math.max(20, termCols - LIST_WIDTH - 4);
 
